@@ -1,0 +1,389 @@
+MEANDER: A Theatrical Choose-Your-Own-Adventure
+Introduction
+MEANDER is a platform designed specifically for choose-your-own-adventure theatrical experiences. In these performances, audience members vote to decide the course of the play, creating a branching narrative where the story can unfold in multiple directions. The environment itself reacts dynamically to these choices—audio, video, and lighting shift in real time to reflect the path the story has taken.
+Performers are supported through technology as well. Actors and musicians have access to a dedicated Performer Screen, which provides hidden cues, timing, and information about the current state and progress of the play. Meanwhile, a stage manager or conductor has access to a Conductor Screen, which allows them to oversee the entire performance and advance story states or transitions either automatically (e.g., after a vote completes) or manually when more flexibility is needed.
+This integration of audience choice, environmental design, and performer support tools creates a seamless interactive storytelling experience where everyone in the room—audience, actors, musicians, and stage crew—moves together through a branching narrative.
+
+How the Platform Operates
+Audience Interaction
+Audience members use their phones as a second screen.
+All audience members see the same information at the same time.
+When prompted, they vote on story choices.
+Results determine the next branch of the play.
+Performer Support
+Performers see a hidden screen that provides context and cues.
+These cues help actors and musicians align with the current branch of the narrative.
+The audience never sees this information.
+Conductor Oversight
+The Conductor (often the stage manager) oversees the flow of the performance.
+Each narrative block has a toggle between:
+Manual: The Conductor manually advances the performance to the next state.
+Auto: The system advances automatically (e.g., after a vote timer expires).
+
+
+This ensures the show remains flexible while still following the planned branching structure.
+Environmental Control
+Audio, video, and lighting systems integrate with the platform.
+As the narrative branches, the technical environment adapts automatically to reinforce the story world.
+
+The People Who Use the Program
+Audience Members: Engage with the play through a shared second screen on their individual phones, voting on story outcomes.
+Performers (Actors & Musicians): Use the Performer Screen to receive hidden cues and instructions, keeping them aligned with the evolving story.
+Conductor (Stage Manager): Uses the Conductor Screen to oversee transitions, set auto/manual toggles, and ensure smooth operation.
+
+
+
+UX Descriptions
+Audience UX
+Simple, unified second-screen experience.
+Displays story prompts and voting options.
+Provides clear feedback once a choice has been made.
+Everyone sees the same thing, reinforcing the communal storytelling experience.
+
+
+Performer UX
+Displays cues, timing, and hidden information about the state of the play.
+Keeps instructions minimal and focused—no extra information about the audience’s perspective is shown.
+Updates live to reflect the branching narrative, ensuring performers are never surprised.
+
+
+Conductor UX
+Timeline of narrative blocks displayed visually.
+Each block includes a vamp/auto toggle.
+Manual advancement possible when the performance requires flexibility.
+Automatic advancement when timing (like vote results) dictates.
+Provides oversight without clutter—no extra quick actions needed.
+
+This platform makes audience-driven branching narratives smooth, manageable, and deeply immersive, empowering every role in the production while maintaining a seamless theatrical experience.
+
+MEANDER — Feature Set
+1. Audience System (Voting Interface)
+The Audience System enables audience members to shape the story by casting votes during branching moments.
+Core Features
+Voting Screen
+Displays exactly two choices at each branching moment.
+Large, legible buttons (optimized for phones).
+Time-limited response window
+Voting Window Control
+Opens when the Conductor triggers a choice.
+Automatically closes after a set duration.
+Media Display (State-Based)
+Images and/or video clips can be shown to the audience automatically at certain state transitions.
+Clean presentation style (no extra UI clutter).
+Device Agnostic
+Accessible via QR code or URL.
+Lightweight, mobile-first design.
+Privacy & Anonymity
+No login required, one vote per device (simple session tracking).
+Out of Scope for Now
+Interactive prompts beyond binary choices.
+Personalization or audience-specific data.
+Displaying real-time results to the audience.
+
+
+
+2. Performer System (Performer Screen)
+The Performer System supports actors and musicians with discreet cues about what’s happening in the story.
+Core Features
+Current State Display
+Shows current scene/branch the play is in.
+Clear, minimal interface so performers can glance quickly.
+
+
+Upcoming Transition Info
+Shows the next expected state based on voting outcome or Conductor action.
+Only displays what performers need to know, no extra detail.
+
+
+Timing Cues
+Countdown timers (e.g., “30s until next choice”).
+Helps musicians/actors pace improvisation and prepare.
+
+
+Hidden Cue Delivery
+Color, text, or symbol cues only visible to performers.
+Example: “Vamp until Conductor advances.”
+
+
+Out of Scope for Now
+Personalization per performer.
+Fail-safe/error notifications.
+Access to voting results.
+
+
+
+3. Conductor System (Conductor Screen)
+The Conductor System is for the stage manager or live operator, controlling the flow of the experience.
+Core Features
+Timeline / Story Blocks
+Blocks represent story “states” or “scenes.”
+Visual branching flow (like a decision tree).
+
+
+Transition Control
+Manual Mode: Conductor presses “advance” when ready.
+Auto Mode: Transition happens automatically when a vote timer expires.
+
+
+Voting Control
+Opens and closes audience voting windows.
+Sets timer duration for each vote.
+
+
+Result Handling
+Displays vote outcome privately.
+Branch automatically chosen based on result.
+System Feedback
+Displays current live scene.
+Confirms transitions with clear highlighting.
+Safety Tools
+Ability to override auto-transitions manually.
+“Hold” mode (pause state).
+Out of Scope for Now
+Quick actions or live environment triggers (handled separately via cues to tech systems).
+Full integration with lighting/audio/video systems (future phase).
+
+MEANDER - Editor Specification
+Overview
+The Editor is the authoring and configuration tool for the platform. Writers, directors, and designers use it to create branching theatrical experiences with audience-driven choices. The Editor does not run timers, media, or outputs—it only defines the story, assets, outputs, and node relationships. The final product is a portable show package (assets/, config/, exports/) that can be loaded by the Conductor at runtime.
+
+Core Principles
+Creative Flexibility: Focus on story, not technical execution.
+Completeness: Loading a show restores all nodes, assets, and outputs exactly.
+Portability: Shows are self-contained folders that can be transferred between machines.
+Validation: Editor ensures data integrity before export.
+
+1. Project & File Management
+File Structure
+/Show_Name/
+    /assets/        # images/videos uploaded for states
+    /config/        # JSON configuration files
+        states.json
+        outputs.json
+        metadata.json
+    /exports/       # Exported show packages
+
+File Roles
+states.json — Contains all Scenes and Forks, node positions, and connections.
+outputs.json — Defines outputs per Scene with raw path/value messages.
+metadata.json — Project info, versioning, and editor notes.
+Project Actions
+Create New Show: Generates the file structure and empty configs.
+Load Existing Show: Loads all JSON and assets, restores node positions, connections, and properties.
+Save / Save As: Updates the /config/ files.
+Export Show: Copies the show folder (assets + configs) into /exports/Show_Name/, using relative paths. Overwrites only with confirmation.
+
+2. Nodes & State Management
+Node Types
+Scene Node
+Fields:
+id (unique)
+title
+description
+performerText
+audienceMedia (images/videos)
+outputIds (array of output references)
+position {x, y}
+connections (IDs of next nodes, typically one Fork)
+Default values:
+Empty title/description
+Empty arrays for outputs/media
+Position default (100,100)
+Fork Node
+Fields:
+id (unique)
+title
+audienceText
+performerText
+countdownSeconds (default 30)
+choices (exactly 2 paths, each with label and nextStateId)
+position {x, y}
+connections (array of the two next Scenes)
+
+
+Constraints:
+Must always have two choices.
+Next state IDs must exist in states.json before exporting.
+Node Behavior
+Drag & Drop: Nodes can be repositioned on canvas. Positions persist in states.json.
+Connection Integrity: Editor warns if a connection points to a non-existent node.
+Loops & Cycles: Allowed, but validation warns if no path leads to a terminal node.
+Selection: Single and multi-node selection for move/delete.
+
+3. Assets Management
+Upload: Drag-and-drop or file picker.
+Supported formats:
+Images: PNG, JPG
+Video: MP4, MOV
+Assign to Nodes: Drag asset onto node or select via side panel.
+Preview: Thumbnails (images) or poster frame (video).
+Validation: Editor flags missing assets or broken references.
+
+4. Outputs Configuration
+Raw Entry: Users input raw OSC/DMX/MQTT paths and values.
+Per Scene Assignment: Outputs linked by outputId.
+Categories: Optional labels for organization (e.g., lights, motors, fog).
+Validation: Checks JSON format but does not validate semantic meaning of paths/values.
+
+
+
+5. User Interface Design
+Workspace
+Left Panel: Tree/List of all states (Scenes & Forks). Searchable/filterable.
+Center Canvas: Visual representation of nodes and connections. Supports drag, zoom, and pan.
+Right Panel: Properties panel showing fields for selected node:
+Scene: title, description, performer text, outputs, media.
+Fork: title, audience text, performer text, countdown, choices.
+Node Editing
+Click node → Properties panel populated.
+Drag assets from asset panel → attaches to selected node.
+Connections rendered visually; updated automatically when choices or nextStateId are modified.
+
+
+Fork Choice Editing
+Two input fields for labels.
+Dropdown/select for nextStateId (auto-populated with existing Scene IDs).
+Connections auto-update on change.
+
+
+
+6. Validation & Error Handling
+Assets: Warn if file missing.
+Fork Choices: Must have exactly two paths.
+Connection Integrity: Warn if connections points to a missing node.
+Export Warnings: Validation runs before export; shows all issues.
+
+
+
+7. Collaboration & Portability
+Shows are self-contained in a single folder.
+Exported shows can be moved to another machine with no modification.
+Relative paths for all assets ensure portability.
+Metadata tracks author, last editor, version, and notes.
+
+
+
+8. Non-Goals / Out-of-Scope
+No runtime execution (timers, OSC, DMX, media playback).
+No audience-facing interaction (all handled by Conductor at runtime).
+No personalization or fail-safe features for performers.
+No real-time collaborative editing (single-user focus).
+
+
+
+9. Editor-Specific Defaults & Rules
+Default Node Position: (100,100) or grid-aligned.
+Default Fork Timer: 30 seconds.
+Node IDs: Auto-generated, must be unique.
+Export Folder Naming: ShowName_YYYY-MM-DD_HHMMSS.
+Overwrite Handling: Prompt user if folder exists.
+Autosave: Optional; otherwise manual save required.
+
+10. JSON Structure Summary
+show.json
+Metadata + pointers to states.json, outputs.json, metadata.json.
+states.json
+Single array of all nodes (Scenes & Forks)
+Node fields: id, type, title, position, connections, etc.
+outputs.json
+Array of outputs linked to states
+Each output: id, sceneId, type, messages (raw path/value)
+metadata.json
+Author, last editor, version, notes
+
+
+JSON File formats
+show.json
+
+{
+  "showName": "My Interactive Adventure",
+  "version": "1.0",
+  "created": "2025-09-02T12:00:00Z",
+  "lastEdited": "2025-09-02T15:30:00Z",
+  "initialStateId": "scene_001",
+  "statesFile": "config/states.json",
+  "outputsFile": "config/outputs.json",
+  "metadataFile": "config/metadata.json"
+}
+
+states.json
+{
+  "states": [
+    {
+      "id": "scene_001",
+      "type": "scene",
+      "title": "Opening Scene",
+      "description": "The adventure begins.",
+      "performerText": "Actor 1 enters stage left.",
+      "audienceMedia": [
+        { "type": "image", "file": "assets/opening_bg.png" },
+        { "type": "video", "file": "assets/intro.mp4" }
+      ],
+      "outputIds": ["output_001", "output_002"],
+      "position": { "x": 100, "y": 200 },
+      "connections": ["fork_001"]  // IDs of nodes this node connects to
+    },
+    {
+      "id": "fork_001",
+      "type": "fork",
+      "title": "Crossroads Choice",
+      "audienceText": "Do you take the left path or right path?",
+      "performerText": "Left: safe path, Right: hidden trap",
+      "countdownSeconds": 30,
+      "choices": [
+        { "label": "Left Path", "nextStateId": "scene_002" },
+        { "label": "Right Path", "nextStateId": "scene_003" }
+      ],
+      "position": { "x": 400, "y": 200 },
+      "connections": ["scene_002", "scene_003"]
+    },
+    {
+      "id": "scene_002",
+      "type": "scene",
+      "title": "Forest Path",
+      "description": "A dark forest lies ahead.",
+      "performerText": "Watch for the trapdoor cue.",
+      "audienceMedia": [
+        { "type": "image", "file": "assets/forest.png" }
+      ],
+      "outputIds": ["output_003"],
+      "position": { "x": 700, "y": 150 },
+      "connections": ["fork_002"]
+    }
+  ]
+}
+
+outputs.json
+
+{
+  "outputs": [
+    {
+      "id": "output_001",
+      "sceneId": "scene_001",
+      "type": "OSC",
+      "messages": [
+        { "path": "/lights/stage1", "value": 255 },
+        { "path": "/fog/machine1", "value": 1 }
+      ]
+    },
+    {
+      "id": "output_002",
+      "sceneId": "scene_002",
+      "type": "OSC",
+      "messages": [
+        { "path": "/lights/stage2", "value": 128 }
+      ]
+    }
+  ]
+}
+
+metadata.json
+
+{
+  "author": "Jane Doe",
+  "lastEditor": "John Smith",
+  "version": "1.0",
+  "notes": "First fully authored show for testing."
+}
+
+
