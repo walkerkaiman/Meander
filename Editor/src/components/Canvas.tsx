@@ -205,8 +205,13 @@ export const Canvas: React.FC<CanvasProps> = ({
     if (!node) return;
 
     // Calculate the output position in canvas coordinates
-    const outputX = node.position.x + 150; // Right edge of node
-    const outputY = node.position.y + 25 + (outputIndex * 25); // Two outputs spaced 25px apart
+    const outputX = node.position.x + 150 + 8; // Right edge of node + connection point offset
+
+    // Handle different node types for output positioning
+    let outputY = node.position.y + 40; // Default position (same as input)
+    if (node.type === 'fork') {
+      outputY = node.position.y + 25 + (outputIndex * 25); // Fork outputs are spaced differently
+    }
 
     setConnectionDragStart({
       nodeId,
@@ -427,8 +432,8 @@ export const Canvas: React.FC<CanvasProps> = ({
         onMouseUp={(e) => handleInputMouseUp(e, fork.id)}
       />
 
-      {/* Output connection points */}
-      {[0, 1].map((outputIndex) => (
+      {/* Output connection points - dynamically generated based on choices */}
+      {fork.choices.map((choice, outputIndex) => (
         <div
           key={outputIndex}
           className="connection-point output-point"
@@ -445,6 +450,7 @@ export const Canvas: React.FC<CanvasProps> = ({
             zIndex: 10
           }}
           onMouseDown={(e) => handleOutputMouseDown(e, fork.id, outputIndex)}
+          title={choice.label || `Choice ${outputIndex + 1}`}
         />
       ))}
 
@@ -476,11 +482,22 @@ export const Canvas: React.FC<CanvasProps> = ({
       const toState = states.find(s => s.id === connection.toNodeId);
 
       if (fromState && toState) {
-        // Calculate connection points based on output index
-        const startX = fromState.position.x + 150; // Right edge of from node
-        const startY = fromState.position.y + 25 + (connection.fromOutputIndex * 25);
-        const endX = toState.position.x; // Left edge of to node
-        const endY = toState.position.y + 40; // Input point on to node
+        // Calculate connection points based on visual connection point positions
+        // Since SVG is positioned at -5000px, -5000px, we need to add 5000 to coordinates
+        // Output point position (right side of source node)
+        const startX = fromState.position.x + 150 + 8 + 5000; // Node width (150) + connection point offset (8px to the right) + SVG offset
+        const startY = fromState.position.y + 40 + 5000; // Connection point is at 40px from top + SVG offset
+
+        // For fork nodes, adjust Y position based on output index
+        let outputY = fromState.position.y + 40;
+        if (fromState.type === 'fork') {
+          outputY = fromState.position.y + 25 + (connection.fromOutputIndex * 25);
+        }
+        const startYAdjusted = outputY + 5000; // Add SVG offset
+
+        // Input point position (left side of target node)
+        const endX = toState.position.x - 8 + 5000; // 8px to the left of node + SVG offset
+        const endY = toState.position.y + 40 + 5000; // Connection point is at 40px from top + SVG offset
 
         connectionElements.push(
           <svg
@@ -489,10 +506,10 @@ export const Canvas: React.FC<CanvasProps> = ({
             data-connection-id={connection.id}
             style={{
               position: 'absolute',
-              left: 0,
-              top: 0,
-              width: '100%',
-              height: '100%',
+              left: '-5000px',
+              top: '-5000px',
+              width: '10000px',
+              height: '10000px',
               pointerEvents: 'none' // Let individual elements handle their own events
             }}
 
@@ -500,7 +517,7 @@ export const Canvas: React.FC<CanvasProps> = ({
           >
             <line
               x1={startX}
-              y1={startY}
+              y1={startYAdjusted}
               x2={endX}
               y2={endY}
               stroke="transparent"
@@ -541,7 +558,7 @@ export const Canvas: React.FC<CanvasProps> = ({
             {/* Visible line on top */}
             <line
               x1={startX}
-              y1={startY}
+              y1={startYAdjusted}
               x2={endX}
               y2={endY}
               stroke={hoveredConnectionId === connection.id ? "#ef4444" : "#3b82f6"}
@@ -550,12 +567,26 @@ export const Canvas: React.FC<CanvasProps> = ({
               style={{ pointerEvents: 'none' }}
             />
 
+            {/* Connection label for fork nodes */}
+            {fromState.type === 'fork' && fromState.choices[connection.fromOutputIndex] && (
+              <text
+                x={(startX + endX) / 2}
+                y={(startYAdjusted + endY) / 2 - 8}
+                textAnchor="middle"
+                fontSize="12"
+                fill="#ffffff"
+                fontWeight="500"
+                style={{ pointerEvents: 'none', userSelect: 'none' }}
+              >
+                {fromState.choices[connection.fromOutputIndex].label || `Choice ${connection.fromOutputIndex + 1}`}
+              </text>
+            )}
 
             {/* Delete overlay when hovering */}
             {hoveredConnectionId === connection.id && (
               <circle
                 cx={(startX + endX) / 2}
-                cy={(startY + endY) / 2}
+                cy={(startYAdjusted + endY) / 2}
                 r="10"
                 fill="#ef4444"
                 stroke="#ffffff"
@@ -589,18 +620,18 @@ export const Canvas: React.FC<CanvasProps> = ({
           className="connection-line drag-preview"
           style={{
             position: 'absolute',
-            left: 0,
-            top: 0,
-            width: '100%',
-            height: '100%',
+            left: '-5000px',
+            top: '-5000px',
+            width: '10000px',
+            height: '10000px',
             pointerEvents: 'none'
           }}
         >
           <line
-            x1={connectionDragStart.position.x}
-            y1={connectionDragStart.position.y}
-            x2={connectionDragEnd.x}
-            y2={connectionDragEnd.y}
+            x1={connectionDragStart.position.x + 5000}
+            y1={connectionDragStart.position.y + 5000}
+            x2={connectionDragEnd.x + 5000}
+            y2={connectionDragEnd.y + 5000}
             stroke="#fbbf24"
             strokeWidth="2"
             strokeDasharray="5,5"
@@ -719,7 +750,7 @@ export const Canvas: React.FC<CanvasProps> = ({
           position: 'relative'
         }}
       >
-        <svg className="canvas-background" style={{ position: 'absolute', width: '100%', height: '100%' }}>
+        <svg className="canvas-background" style={{ position: 'absolute', width: '10000px', height: '10000px', left: '-5000px', top: '-5000px' }}>
           <defs>
             <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
               <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#2d2d44" strokeWidth="1"/>
@@ -729,7 +760,7 @@ export const Canvas: React.FC<CanvasProps> = ({
               <polygon points="0 0, 10 3.5, 0 7" fill="#3b82f6" />
             </marker>
           </defs>
-          <rect width="100%" height="100%" fill="url(#grid)" />
+          <rect width="10000" height="10000" fill="url(#grid)" />
         </svg>
         
         {renderConnections()}

@@ -1,19 +1,25 @@
-import React, { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { ProjectData } from './types';
 import { FileOperations } from './utils/fileOperations';
 import { EditorLayout } from './components/EditorLayout';
 import { WelcomeScreen } from './components/WelcomeScreen';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { ValidationPanel } from './components/ValidationPanel';
 import './App.css';
 
 function App() {
   const [projectData, setProjectData] = useState<ProjectData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [showSaveSuccess, setShowSaveSuccess] = useState(false);
+  const [fadeOutSaveSuccess, setFadeOutSaveSuccess] = useState(false);
 
   const handleCreateNewShow = async (showName: string, author: string) => {
     setIsLoading(true);
     try {
       const newProject = FileOperations.createNewShow(showName, author);
       setProjectData(newProject);
+      setHasUnsavedChanges(false); // New project starts as saved
     } catch (error) {
       console.error('Error creating new show:', error);
     } finally {
@@ -22,19 +28,12 @@ function App() {
   };
 
   const handleLoadShow = async () => {
-    // Check if there are unsaved changes
-    if (projectData && projectData.show.lastEdited !== projectData.show.created) {
-      const confirmed = window.confirm(
-        'You have unsaved changes. Are you sure you want to load a different show? This will discard all current changes.'
-      );
-      if (!confirmed) return;
-    }
-    
     setIsLoading(true);
     try {
       const loadedProject = await FileOperations.loadShow();
       if (loadedProject) {
         setProjectData(loadedProject);
+        setHasUnsavedChanges(false); // Loaded project starts as saved
       }
     } catch (error) {
       console.error('Error loading show:', error);
@@ -44,18 +43,11 @@ function App() {
   };
 
   const handleNewShow = async () => {
-    // Check if there are unsaved changes
-    if (projectData && projectData.show.lastEdited !== projectData.show.created) {
-      const confirmed = window.confirm(
-        'You have unsaved changes. Are you sure you want to create a new show? This will discard all current changes.'
-      );
-      if (!confirmed) return;
-    }
-    
     setIsLoading(true);
     try {
       const newProject = FileOperations.createNewShow('Untitled Show', 'Unknown Author');
       setProjectData(newProject);
+      setHasUnsavedChanges(false); // New project starts as saved
     } catch (error) {
       console.error('Error creating new show:', error);
     } finally {
@@ -69,9 +61,27 @@ function App() {
     setIsLoading(true);
     try {
       await FileOperations.saveShow(projectData);
-      // Update the project data with new timestamp
-      setProjectData({ ...projectData });
-      alert('Show saved successfully!');
+      // Update the project data with new timestamp from FileOperations
+      const updatedProjectData = { ...projectData };
+      updatedProjectData.show.lastEdited = new Date().toISOString();
+      setProjectData(updatedProjectData);
+      setHasUnsavedChanges(false); // Mark as saved
+
+      // Show styled success notification (same as validation success)
+      setFadeOutSaveSuccess(false);
+      setShowSaveSuccess(true);
+
+      // Start fade out after 2 seconds
+      setTimeout(() => {
+        setFadeOutSaveSuccess(true);
+      }, 2000);
+
+      // Hide completely after fade animation (2.3 seconds total)
+      setTimeout(() => {
+        setShowSaveSuccess(false);
+        setFadeOutSaveSuccess(false);
+      }, 2300);
+
     } catch (error) {
       console.error('Error saving show:', error);
       alert(`Failed to save show: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -102,10 +112,11 @@ function App() {
     }
   };
 
-  const handleUpdateProject = React.useCallback((updatedProject: ProjectData) => {
+  const handleUpdateProject = useCallback((updatedProject: ProjectData) => {
     // Only update if the data actually changed to prevent infinite loops
     if (JSON.stringify(projectData) !== JSON.stringify(updatedProject)) {
       setProjectData(updatedProject);
+      setHasUnsavedChanges(true); // Mark as having unsaved changes
     }
   }, [projectData]);
 
@@ -120,23 +131,41 @@ function App() {
 
   if (!projectData) {
     return (
-      <WelcomeScreen 
-        onCreateNewShow={handleCreateNewShow}
-        onLoadShow={handleLoadShow}
-      />
+      <ErrorBoundary>
+        <WelcomeScreen
+          onCreateNewShow={handleCreateNewShow}
+          onLoadShow={handleLoadShow}
+        />
+      </ErrorBoundary>
     );
   }
 
-      return (
-      <EditorLayout
-        projectData={projectData}
-        onUpdateProject={handleUpdateProject}
-        onNewShow={handleNewShow}
-        onLoadShow={handleLoadShow}
-        onSaveShow={handleSaveShow}
-        onExportShow={handleExportShow}
-      />
-    );
+  return (
+    <ErrorBoundary>
+      <div className="app-container">
+        <EditorLayout
+          projectData={projectData}
+          hasUnsavedChanges={hasUnsavedChanges}
+          onUpdateProject={handleUpdateProject}
+          onNewShow={handleNewShow}
+          onLoadShow={handleLoadShow}
+          onSaveShow={handleSaveShow}
+          onExportShow={handleExportShow}
+        />
+
+        {showSaveSuccess && (
+          <div className={`save-success-notification ${fadeOutSaveSuccess ? 'fade-out' : ''}`}>
+            <ValidationPanel
+              errors={[]}
+              successTitle="Show Saved Successfully"
+              successMessage="Your show has been saved!"
+              onClose={() => {}}
+            />
+          </div>
+        )}
+      </div>
+    </ErrorBoundary>
+  );
 }
 
 export default App;

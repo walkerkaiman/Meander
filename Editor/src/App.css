@@ -383,6 +383,14 @@ body {
   background: #f59e0b;
 }
 
+.opening-node .node-icon {
+  background: #a855f7;
+}
+
+.ending-node .node-icon {
+  background: #a855f7;
+}
+
 .node-content {
   flex: 1;
   min-width: 0;
@@ -611,6 +619,14 @@ body {
 
 .fork-node {
   border-color: #f59e0b;
+}
+
+.opening-node {
+  border-color: #a855f7;
+}
+
+.ending-node {
+  border-color: #a855f7;
 }
 
 .node-header {
@@ -1023,6 +1039,110 @@ body {
 /* Apply fade out when hiding */
 .fade-out {
   animation: fadeOut 0.3s ease-in forwards;
+}
+
+/* App Container */
+.app-container {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Save Success Notification */
+.save-success-notification {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+  animation: slideInRight 0.3s ease-out;
+}
+
+.save-success-notification.fade-out {
+  animation: fadeOutSlideRight 0.3s ease-in forwards;
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeOutSlideRight {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+/* Error Boundary Styling */
+.error-boundary {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  border: 1px solid #e2e8f0;
+  max-width: 500px;
+  width: 90%;
+  z-index: 10000;
+}
+
+.error-boundary-header {
+  padding: 20px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #fef2f2;
+  border-radius: 12px 12px 0 0;
+}
+
+.error-boundary-header h2 {
+  margin: 0;
+  color: #dc2626;
+  font-size: 1.2rem;
+}
+
+.error-boundary-content {
+  padding: 20px;
+}
+
+.error-boundary-content p {
+  margin-bottom: 16px;
+  color: #374151;
+}
+
+.error-details {
+  margin-bottom: 16px;
+}
+
+.error-details summary {
+  cursor: pointer;
+  color: #6b7280;
+  font-size: 0.9rem;
+  margin-bottom: 8px;
+}
+
+.error-stack {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 12px;
+  font-family: monospace;
+  font-size: 0.8rem;
+  color: #374151;
+  white-space: pre-wrap;
+  max-height: 200px;
+  overflow-y: auto;
 }
 
 .validation-header {

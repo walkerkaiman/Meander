@@ -1,4 +1,4 @@
-import { ProjectData, State, Connection, Show, ShowMetadata, ValidationError } from '../types';
+import { ProjectData, State, Connection, Show, ShowMetadata, ValidationError, AudienceMedia } from '../types';
 
 export class FileOperations {
   static createNewShow(showName: string, author: string): ProjectData {
@@ -142,6 +142,32 @@ export class FileOperations {
     }
   }
 
+  // Utility function to safely handle media files
+  static createMediaFileReference(file: File): Omit<AudienceMedia, 'originalFile' | 'checksum'> {
+    return {
+      type: file.type.startsWith('image/') ? 'image' : 'video',
+      file: file.name,
+      size: file.size
+    };
+  }
+
+  // Utility function to validate file integrity
+  static validateFileIntegrity(file: File): Promise<boolean> {
+    return new Promise((resolve) => {
+      if (!file || !(file instanceof File)) {
+        resolve(false);
+        return;
+      }
+
+      // Basic validation
+      const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/webm'];
+      const isValidType = validTypes.includes(file.type);
+      const isValidSize = file.size > 0 && file.size < 100 * 1024 * 1024; // Max 100MB
+
+      resolve(isValidType && isValidSize);
+    });
+  }
+
   static async exportShow(projectData: ProjectData): Promise<void> {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
     const packageName = `${projectData.show.showName.replace(/[^a-zA-Z0-9]/g, '_')}_${timestamp}`;
@@ -259,7 +285,8 @@ export class FileOperations {
       errors.push({
         type: 'missing_required',
         message: 'Show name is required',
-        nodeId: 'show'
+        nodeId: 'show',
+        severity: 'error'
       });
     }
 
@@ -267,7 +294,8 @@ export class FileOperations {
       errors.push({
         type: 'missing_required',
         message: 'Author name is required',
-        nodeId: 'metadata'
+        nodeId: 'metadata',
+        severity: 'error'
       });
     }
 
@@ -278,7 +306,8 @@ export class FileOperations {
         errors.push({
           type: 'missing_required',
           message: `State "${state.type}" is missing a title`,
-          nodeId: state.id
+          nodeId: state.id,
+          severity: 'error'
         });
       }
 
@@ -288,7 +317,8 @@ export class FileOperations {
           errors.push({
             type: 'missing_required',
             message: `Scene "${state.title || 'Untitled'}" is missing a description`,
-            nodeId: state.id
+            nodeId: state.id,
+            severity: 'error'
           });
         }
 
@@ -300,7 +330,8 @@ export class FileOperations {
             errors.push({
               type: 'invalid_connection',
               message: `Scene "${state.title || 'Untitled'}" connection points to non-existent state: ${connection.toNodeId}`,
-              nodeId: state.id
+              nodeId: state.id,
+              severity: 'error'
             });
           }
         });
@@ -311,7 +342,8 @@ export class FileOperations {
             errors.push({
               type: 'missing_asset',
               message: `Scene "${state.title || 'Untitled'}" has media file "${media.file}" but the original file was not found. Please re-upload this file.`,
-              nodeId: state.id
+              nodeId: state.id,
+              severity: 'warning'
             });
           }
         });
@@ -323,7 +355,8 @@ export class FileOperations {
           errors.push({
             type: 'missing_required',
             message: `Opening Scene "${state.title || 'Untitled'}" is missing a description`,
-            nodeId: state.id
+            nodeId: state.id,
+            severity: 'error'
           });
         }
 
@@ -333,7 +366,8 @@ export class FileOperations {
           errors.push({
             type: 'invalid_connection',
             message: `Opening Scene "${state.title || 'Untitled'}" should not have incoming connections`,
-            nodeId: state.id
+            nodeId: state.id,
+            severity: 'error'
           });
         }
 
@@ -345,7 +379,8 @@ export class FileOperations {
             errors.push({
               type: 'invalid_connection',
               message: `Opening Scene "${state.title || 'Untitled'}" connection points to non-existent state: ${connection.toNodeId}`,
-              nodeId: state.id
+              nodeId: state.id,
+              severity: 'error'
             });
           }
         });
@@ -356,7 +391,8 @@ export class FileOperations {
             errors.push({
               type: 'missing_asset',
               message: `Opening Scene "${state.title || 'Untitled'}" has media file "${media.file}" but the original file was not found. Please re-upload this file.`,
-              nodeId: state.id
+              nodeId: state.id,
+              severity: 'warning'
             });
           }
         });
@@ -368,7 +404,8 @@ export class FileOperations {
           errors.push({
             type: 'missing_required',
             message: `Ending Scene "${state.title || 'Untitled'}" is missing a description`,
-            nodeId: state.id
+            nodeId: state.id,
+            severity: 'error'
           });
         }
 
@@ -378,7 +415,8 @@ export class FileOperations {
           errors.push({
             type: 'invalid_connection',
             message: `Ending Scene "${state.title || 'Untitled'}" should not have outgoing connections`,
-            nodeId: state.id
+            nodeId: state.id,
+            severity: 'error'
           });
         }
 
@@ -388,7 +426,8 @@ export class FileOperations {
           errors.push({
             type: 'missing_connection',
             message: `Ending Scene "${state.title || 'Untitled'}" should have at least one incoming connection`,
-            nodeId: state.id
+            nodeId: state.id,
+            severity: 'error'
           });
         }
 
@@ -399,7 +438,8 @@ export class FileOperations {
             errors.push({
               type: 'invalid_connection',
               message: `Ending Scene "${state.title || 'Untitled'}" has incoming connection from non-existent state: ${connection.fromNodeId}`,
-              nodeId: state.id
+              nodeId: state.id,
+              severity: 'error'
             });
           }
         });
@@ -410,7 +450,8 @@ export class FileOperations {
             errors.push({
               type: 'missing_asset',
               message: `Ending Scene "${state.title || 'Untitled'}" has media file "${media.file}" but the original file was not found. Please re-upload this file.`,
-              nodeId: state.id
+              nodeId: state.id,
+              severity: 'warning'
             });
           }
         });
@@ -422,7 +463,8 @@ export class FileOperations {
           errors.push({
             type: 'missing_required',
             message: `Fork "${state.title || 'Untitled'}" is missing audience text`,
-            nodeId: state.id
+            nodeId: state.id,
+            severity: 'error'
           });
         }
 
@@ -439,7 +481,8 @@ export class FileOperations {
           errors.push({
             type: 'invalid_fork',
             message: `Fork "${state.title || 'Untitled'}" must have exactly 2 choices, found ${state.choices.length}`,
-            nodeId: state.id
+            nodeId: state.id,
+            severity: 'error'
           });
         } else {
           // Check both choices
@@ -448,7 +491,8 @@ export class FileOperations {
               errors.push({
                 type: 'missing_required',
                 message: `Fork "${state.title || 'Untitled'}" choice ${index + 1} is missing a label`,
-                nodeId: state.id
+                nodeId: state.id,
+                severity: 'error'
               });
             }
 
@@ -456,7 +500,8 @@ export class FileOperations {
               errors.push({
                 type: 'missing_connection',
                 message: `Fork "${state.title || 'Untitled'}" choice "${choice.label || `Choice ${index + 1}`}" is missing a target state`,
-                nodeId: state.id
+                nodeId: state.id,
+                severity: 'error'
               });
             } else {
               const nextStateExists = projectData.states.some(s => s.id === choice.nextStateId);
@@ -464,7 +509,8 @@ export class FileOperations {
                 errors.push({
                   type: 'invalid_connection',
                   message: `Fork "${state.title || 'Untitled'}" choice "${choice.label || `Choice ${index + 1}`}" points to non-existent state: ${choice.nextStateId}`,
-                  nodeId: state.id
+                  nodeId: state.id,
+                  severity: 'error'
                 });
               }
             }
@@ -503,7 +549,8 @@ export class FileOperations {
         errors.push({
           type: 'missing_connection',
           message: `Node "${state.title || `${state.type} ${state.id}`}" must have at least one output connection (it's not a terminal node)`,
-          nodeId: state.id
+          nodeId: state.id,
+          severity: 'error'
         });
       }
     });

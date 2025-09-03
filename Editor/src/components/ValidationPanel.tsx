@@ -5,11 +5,15 @@ import { AlertTriangle, X, CheckCircle } from 'lucide-react';
 interface ValidationPanelProps {
   errors: ValidationError[];
   onClose: () => void;
+  successTitle?: string;
+  successMessage?: string;
 }
 
 export const ValidationPanel: React.FC<ValidationPanelProps> = ({
   errors,
-  onClose
+  onClose,
+  successTitle,
+  successMessage
 }) => {
   const getErrorIcon = (type: ValidationError['type']) => {
     switch (type) {
@@ -62,13 +66,13 @@ export const ValidationPanel: React.FC<ValidationPanelProps> = ({
       <div className="validation-panel success-panel">
         <div className="validation-header">
           <div className="validation-title">
-            <h3>Validation Successful</h3>
+            <h3>{successTitle || 'Validation Successful'}</h3>
           </div>
         </div>
         <div className="validation-content">
           <div className="validation-success-message">
             <CheckCircle size={24} />
-            <span>Your show is ready to export!</span>
+            <span>{successMessage || 'Your show is ready to export!'}</span>
           </div>
         </div>
       </div>

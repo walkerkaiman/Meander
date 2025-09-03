@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { ProjectData, StateUpdate, ValidationError } from '../types';
 import { StateTree } from './StateTree';
 import { Canvas } from './Canvas';
@@ -10,6 +10,7 @@ import { FileOperations } from '../utils/fileOperations';
 
 interface EditorLayoutProps {
   projectData: ProjectData;
+  hasUnsavedChanges: boolean;
   onUpdateProject: (project: ProjectData) => void;
   onNewShow: () => void;
   onLoadShow: () => void;
@@ -19,12 +20,15 @@ interface EditorLayoutProps {
 
 export const EditorLayout: React.FC<EditorLayoutProps> = ({
   projectData,
+  hasUnsavedChanges,
   onUpdateProject,
   onNewShow,
   onLoadShow,
   onSaveShow,
   onExportShow
 }) => {
+  // Use ref to track last update to prevent expensive comparisons
+  const lastUpdateRef = useRef<string>('');
   const handleCreateConnection = useCallback((fromNodeId: string, fromOutputIndex: number, toNodeId: string) => {
     const connectionId = FileOperations.generateUniqueId();
     const newConnection = {
@@ -217,8 +221,17 @@ export const EditorLayout: React.FC<EditorLayoutProps> = ({
     setSelectedNodeId(newEnding.id);
   };
 
-  const handleUpdateNode = (nodeId: string, updates: StateUpdate) => {
-    const updatedStates = projectData.states.map(state => 
+  const handleUpdateNode = useCallback((nodeId: string, updates: StateUpdate) => {
+    // Create a simple hash of the update for comparison
+    const updateHash = `${nodeId}-${JSON.stringify(updates)}`;
+
+    // Skip if this is the same update we just processed
+    if (lastUpdateRef.current === updateHash) {
+      return;
+    }
+    lastUpdateRef.current = updateHash;
+
+    const updatedStates = projectData.states.map(state =>
       state.id === nodeId ? { ...state, ...updates } : state
     );
 
@@ -228,7 +241,7 @@ export const EditorLayout: React.FC<EditorLayoutProps> = ({
     };
 
     onUpdateProject(updatedProject);
-  };
+  }, [projectData, onUpdateProject]);
 
     const handleDeleteNode = (nodeId: string) => {
     // Get all connections that involve the deleted node
@@ -329,7 +342,7 @@ export const EditorLayout: React.FC<EditorLayoutProps> = ({
     <div className="editor-layout">
       <Toolbar
         projectName={projectData.show.showName}
-        hasUnsavedChanges={projectData.show.lastEdited !== projectData.show.created}
+        hasUnsavedChanges={hasUnsavedChanges}
         onNewShow={onNewShow}
         onLoadShow={onLoadShow}
         onSave={onSaveShow}
@@ -345,6 +358,7 @@ export const EditorLayout: React.FC<EditorLayoutProps> = ({
         <div className="editor-left-panel">
           <StateTree
             states={projectData.states}
+            connections={projectData.connections}
             selectedNodeId={selectedNodeId}
             onNodeSelect={handleNodeSelect}
             onDeleteNode={handleDeleteNode}
@@ -366,8 +380,6 @@ export const EditorLayout: React.FC<EditorLayoutProps> = ({
         <div className="editor-right-panel">
           <PropertiesPanel
             node={selectedNode}
-            connections={projectData.connections}
-            states={projectData.states}
             onUpdateNode={handleUpdateNode}
           />
         </div>
