@@ -362,7 +362,8 @@ body {
 
 .tree-node.selected {
   background: #2d2d44;
-  border-color: #3b82f6;
+  border: 2px dashed #3b82f6;
+  animation: dashedLine 2s linear infinite;
 }
 
 .node-icon {
@@ -479,7 +480,7 @@ body {
 
 /* Canvas Transform Container */
 .canvas-transform-container {
-  will-change: transform;
+  /* Optimized for smooth transforms */
 }
 
 /* Zoom Controls */
@@ -555,7 +556,12 @@ body {
   color: #e0e0e0;
 }
 
-.mini-map-reset {
+.mini-map-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.mini-map-btn {
   background: none;
   border: none;
   color: #a0a0a0;
@@ -565,7 +571,7 @@ body {
   transition: all 0.2s ease;
 }
 
-.mini-map-reset:hover {
+.mini-map-btn:hover {
   color: #e0e0e0;
   background: #1a1a2e;
 }
@@ -602,6 +608,7 @@ body {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   transition: all 0.2s ease;
   user-select: none;
+  transform-origin: center center;
 }
 
 .canvas-node:hover {
@@ -609,8 +616,35 @@ body {
 }
 
 .canvas-node.selected {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  border: 3px dashed #ffffff;
+  box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.2);
+  animation: borderGlow 2s ease-in-out infinite;
+}
+
+/* SVG Node Selection Styling */
+.canvas-node.selected rect {
+  stroke-dasharray: 5,5;
+  animation: dashedLine 1s linear infinite;
+}
+
+/* Connection point circles should not have dashed lines */
+.canvas-node.selected circle {
+  stroke-dasharray: none;
+  animation: none;
+}
+
+@keyframes borderGlow {
+  0%, 100% {
+    box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 0 12px rgba(255, 255, 255, 0.4), 0 0 0 18px rgba(255, 255, 255, 0.1);
+  }
+}
+
+@keyframes dashedLine {
+  0% { stroke-dashoffset: 0; }
+  100% { stroke-dashoffset: 10; }
 }
 
 .scene-node {

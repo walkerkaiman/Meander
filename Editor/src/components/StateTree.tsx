@@ -23,7 +23,7 @@ export const StateTree: React.FC<StateTreeProps> = ({
 
   const handleDeleteClick = (e: React.MouseEvent, nodeId: string) => {
     e.stopPropagation();
-    if (confirm('Are you sure you want to delete this node?')) {
+    if (confirm('Are you sure you want to remove a scene?')) {
       onDeleteNode(nodeId);
     }
   };
