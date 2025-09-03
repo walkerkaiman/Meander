@@ -72,8 +72,7 @@ export class FileOperations {
         audienceMedia: [],
         outputIds: [],
         position: { x: 100, y: 100 },
-        connections: [],
-        nextStateId: 'fork_1'
+        connections: []
       };
 
       const fork1 = {
@@ -88,7 +87,9 @@ export class FileOperations {
           { label: 'Take the right path', nextStateId: 'scene_3' }
         ],
         position: { x: 300, y: 100 },
-        connections: []
+        connections: [],
+        audienceMedia: [],
+        outputIds: []
       };
 
       const scene2 = {
@@ -142,46 +143,111 @@ export class FileOperations {
   }
 
   static async exportShow(projectData: ProjectData): Promise<void> {
-    // Validate before exporting
-    const validationErrors = this.validateProject(projectData);
-    if (validationErrors.length > 0) {
-      const errorMessages = validationErrors.map(err => err.message).join('\n');
-      throw new Error(`Cannot export show due to validation errors:\n${errorMessages}`);
-    }
-
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-    const exportFolderName = `${projectData.show.showName}_${timestamp}`;
+    const packageName = `${projectData.show.showName.replace(/[^a-zA-Z0-9]/g, '_')}_${timestamp}`;
 
     try {
-      // Create export directory structure in localStorage
+      // Dynamically import JSZip
+      const JSZip = (await import('jszip')).default;
+      const zip = new JSZip();
+
+      // Collect all media files
+      const mediaFiles: { [key: string]: File } = {};
+      const missingFiles: string[] = [];
+
+      // Create show configuration without File objects
+      const exportStates = projectData.states.map(state => ({
+        ...state,
+        audienceMedia: (state.audienceMedia || []).map(media => ({
+          type: media.type,
+          file: `media/${media.file}`,
+          size: media.size
+        }))
+      }));
+
       const exportData = {
-        show: projectData.show,
-        states: projectData.states,
+        show: {
+          ...projectData.show,
+          showName: projectData.show.showName,
+          version: '1.0',
+          created: projectData.show.created,
+          lastEdited: projectData.show.lastEdited,
+          initialStateId: projectData.show.initialStateId,
+          statesFile: 'config/states.json',
+          outputsFile: 'config/outputs.json',
+          metadataFile: 'config/metadata.json'
+        },
+        states: exportStates,
         outputs: projectData.outputs,
         metadata: projectData.metadata,
         exportedAt: new Date().toISOString(),
-        version: '1.0'
+        version: '1.0',
+        packageFormat: 'meander-show-v1'
       };
 
-      const exportKey = `meander_export_${exportFolderName}`;
-      localStorage.setItem(exportKey, JSON.stringify(exportData));
+      // Add configuration files
+      zip.file('config/states.json', JSON.stringify({ states: exportStates }, null, 2));
+      zip.file('config/outputs.json', JSON.stringify({ outputs: projectData.outputs }, null, 2));
+      zip.file('config/metadata.json', JSON.stringify(projectData.metadata, null, 2));
+      zip.file('show.json', JSON.stringify(exportData, null, 2));
 
-      // Create a downloadable JSON file
-      const dataStr = JSON.stringify(exportData, null, 2);
-      const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+      // Collect and add media files
+      let mediaCount = 0;
+      for (const state of projectData.states) {
+        const audienceMedia = state.audienceMedia || [];
+        for (const media of audienceMedia) {
+          if (media.originalFile && media.originalFile instanceof File) {
+            const mediaPath = `media/${media.file}`;
+            if (!mediaFiles[mediaPath]) {
+              mediaFiles[mediaPath] = media.originalFile;
+              zip.file(mediaPath, media.originalFile);
+              mediaCount++;
+            }
+          } else {
+            // If originalFile is not available (e.g., from loaded project), warn user
+            console.warn(`Media file "${media.file}" is missing. Please re-upload this file.`);
+            // Add to a list of missing files to show to user
+            missingFiles.push(media.file);
+          }
+        }
+      }
+
+      // Generate and download the ZIP file
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
 
       const exportLink = document.createElement('a');
-      exportLink.setAttribute('href', dataUri);
-      exportLink.setAttribute('download', `${exportFolderName}.json`);
+      exportLink.href = URL.createObjectURL(zipBlob);
+      exportLink.download = `${packageName}.zip`;
       exportLink.click();
 
-      console.log(`Export successful: ${exportFolderName}`);
-      console.log('Created files:');
-      console.log(`  ${exportFolderName}.json`);
-      console.log('Export complete!');
+      // Clean up the object URL
+      setTimeout(() => URL.revokeObjectURL(exportLink.href), 100);
+
+      console.log(`🎭 Export successful: ${packageName}.zip`);
+      console.log('📦 Package contents:');
+      console.log('  📁 config/');
+      console.log('    📄 states.json');
+      console.log('    📄 outputs.json');
+      console.log('    📄 metadata.json');
+      console.log('  📁 media/');
+      console.log(`    📄 ${mediaCount} media files included`);
+      if (missingFiles.length > 0) {
+        console.log(`    ⚠️  ${missingFiles.length} media files missing (not included)`);
+        console.log('    Missing files:', missingFiles.join(', '));
+      }
+      console.log('  📄 show.json (main configuration)');
+      console.log('');
+
+      if (missingFiles.length > 0) {
+        alert(`Export completed, but ${missingFiles.length} media files were missing and not included in the package:\n\n${missingFiles.join('\n')}\n\nPlease re-upload these files if you want them included in future exports.`);
+        console.log('⚠️  Some media files were missing - please re-upload them for complete exports');
+      } else {
+        console.log('✅ Ready for Conductor import!');
+      }
+
     } catch (error) {
       console.error('Error during export:', error);
-      throw new Error('Failed to export project');
+      throw new Error('Failed to export project package');
     }
   }
 
@@ -226,15 +292,6 @@ export class FileOperations {
           });
         }
 
-        // Performer text is optional for scenes - can be empty if not needed
-        // if (!state.performerText.trim()) {
-        //   errors.push({
-        //     type: 'missing_required',
-        //     message: `Scene "${state.title || 'Untitled'}" is missing performer text`,
-        //     nodeId: state.id
-        //   });
-        // }
-
         // Check if scene connections exist and point to valid states
         const sceneConnections = projectData.connections.filter(conn => conn.fromNodeId === state.id);
         sceneConnections.forEach(connection => {
@@ -247,20 +304,116 @@ export class FileOperations {
             });
           }
         });
-        // } else {
-        //   // Scene should have a next state (unless it's an ending)
-        //   const isEnding = !projectData.states.some(otherState =>
-        //     otherState.type === 'scene' && otherState.nextStateId === state.id ||
-        //     otherState.type === 'fork' && otherState.choices.some(choice => choice.nextStateId === state.id)
-        //   );
-        //   if (!isEnding) {
-        //     errors.push({
-        //       type: 'missing_connection',
-        //       message: `Scene "${state.title || 'Untitled'}" should have a next state connection`,
-        //       nodeId: state.id
-        //     });
-        //   }
-        // }
+
+        // Check for media files without original files (warnings)
+        state.audienceMedia.forEach(media => {
+          if (!media.originalFile) {
+            errors.push({
+              type: 'missing_asset',
+              message: `Scene "${state.title || 'Untitled'}" has media file "${media.file}" but the original file was not found. Please re-upload this file.`,
+              nodeId: state.id
+            });
+          }
+        });
+      }
+
+      // Opening scene-specific validation
+      if (state.type === 'opening') {
+        if (!state.description.trim()) {
+          errors.push({
+            type: 'missing_required',
+            message: `Opening Scene "${state.title || 'Untitled'}" is missing a description`,
+            nodeId: state.id
+          });
+        }
+
+        // Check for invalid incoming connections to opening scene
+        const incomingConnections = projectData.connections.filter(conn => conn.toNodeId === state.id);
+        if (incomingConnections.length > 0) {
+          errors.push({
+            type: 'invalid_connection',
+            message: `Opening Scene "${state.title || 'Untitled'}" should not have incoming connections`,
+            nodeId: state.id
+          });
+        }
+
+        // Check if opening scene connections exist and point to valid states
+        const outgoingConnections = projectData.connections.filter(conn => conn.fromNodeId === state.id);
+        outgoingConnections.forEach(connection => {
+          const targetStateExists = projectData.states.some(s => s.id === connection.toNodeId);
+          if (!targetStateExists) {
+            errors.push({
+              type: 'invalid_connection',
+              message: `Opening Scene "${state.title || 'Untitled'}" connection points to non-existent state: ${connection.toNodeId}`,
+              nodeId: state.id
+            });
+          }
+        });
+
+        // Check for media files without original files (warnings)
+        state.audienceMedia.forEach(media => {
+          if (!media.originalFile) {
+            errors.push({
+              type: 'missing_asset',
+              message: `Opening Scene "${state.title || 'Untitled'}" has media file "${media.file}" but the original file was not found. Please re-upload this file.`,
+              nodeId: state.id
+            });
+          }
+        });
+      }
+
+      // Ending scene-specific validation
+      if (state.type === 'ending') {
+        if (!state.description.trim()) {
+          errors.push({
+            type: 'missing_required',
+            message: `Ending Scene "${state.title || 'Untitled'}" is missing a description`,
+            nodeId: state.id
+          });
+        }
+
+        // Check for invalid outgoing connections from ending scene
+        const outgoingConnections = projectData.connections.filter(conn => conn.fromNodeId === state.id);
+        if (outgoingConnections.length > 0) {
+          errors.push({
+            type: 'invalid_connection',
+            message: `Ending Scene "${state.title || 'Untitled'}" should not have outgoing connections`,
+            nodeId: state.id
+          });
+        }
+
+        // Check if ending scene has at least one incoming connection
+        const incomingConnections = projectData.connections.filter(conn => conn.toNodeId === state.id);
+        if (incomingConnections.length === 0 && projectData.states.length > 1) {
+          errors.push({
+            type: 'missing_connection',
+            message: `Ending Scene "${state.title || 'Untitled'}" should have at least one incoming connection`,
+            nodeId: state.id
+          });
+        }
+
+        // Check if incoming connections point to valid states
+        incomingConnections.forEach(connection => {
+          const sourceStateExists = projectData.states.some(s => s.id === connection.fromNodeId);
+          if (!sourceStateExists) {
+            errors.push({
+              type: 'invalid_connection',
+              message: `Ending Scene "${state.title || 'Untitled'}" has incoming connection from non-existent state: ${connection.fromNodeId}`,
+              nodeId: state.id
+            });
+          }
+        });
+
+        // Check for media files without original files (warnings)
+        state.audienceMedia.forEach(media => {
+          if (!media.originalFile) {
+            errors.push({
+              type: 'missing_asset',
+              message: `Ending Scene "${state.title || 'Untitled'}" has media file "${media.file}" but the original file was not found. Please re-upload this file.`,
+              nodeId: state.id
+            });
+          }
+        });
       }
 
       // Fork-specific validation
@@ -320,13 +473,36 @@ export class FileOperations {
       }
     });
 
-    // Check that each node has at least one output connection
+    // Check that non-terminal nodes have at least one output connection
     projectData.states.forEach(state => {
+      // Skip validation for Ending scenes - they should NOT have output connections
+      if (state.type === 'ending') {
+        return;
+      }
+
       const stateConnections = projectData.connections.filter(conn => conn.fromNodeId === state.id);
-      if (stateConnections.length === 0) {
+
+      // A node is terminal if it's not referenced by any other node's connections or choices
+      // Opening scenes are always non-terminal (starting points)
+      // Ending scenes are handled above (they're skipped)
+      const isTerminal = !projectData.states.some(otherState => {
+        if (otherState.type === 'scene' || otherState.type === 'opening') {
+          // Scenes and OpeningScenes reference nodes through connections
+          return projectData.connections.some(conn =>
+            conn.fromNodeId === otherState.id && conn.toNodeId === state.id
+          );
+        } else if (otherState.type === 'fork') {
+          // Forks reference nodes through their choices
+          return otherState.choices.some(choice => choice.nextStateId === state.id);
+        }
+        return false;
+      });
+
+      // Only require connections for non-terminal nodes
+      if (!isTerminal && stateConnections.length === 0) {
         errors.push({
           type: 'missing_connection',
-          message: `Node "${state.title || `${state.type} ${state.id}`}" must have at least one output connection for export`,
+          message: `Node "${state.title || `${state.type} ${state.id}`}" must have at least one output connection (it's not a terminal node)`,
           nodeId: state.id
         });
       }

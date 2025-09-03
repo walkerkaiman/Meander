@@ -8,6 +8,8 @@ export interface Position {
 export interface AudienceMedia {
   type: 'image' | 'video';
   file: string;
+  originalFile?: File; // The actual file object for export
+  size?: number; // File size in bytes
 }
 
 export interface Choice {
@@ -35,6 +37,30 @@ export interface Scene {
   connections: string[]; // IDs of outgoing connections
 }
 
+export interface OpeningScene {
+  id: string;
+  type: 'opening';
+  title: string;
+  description: string;
+  performerText: string;
+  audienceMedia: AudienceMedia[];
+  outputIds: string[];
+  position: Position;
+  connections: string[]; // IDs of outgoing connections
+}
+
+export interface EndingScene {
+  id: string;
+  type: 'ending';
+  title: string;
+  description: string;
+  performerText: string;
+  audienceMedia: AudienceMedia[];
+  outputIds: string[];
+  position: Position;
+  connections: string[]; // IDs of outgoing connections
+}
+
 export interface Fork {
   id: string;
   type: 'fork';
@@ -45,14 +71,18 @@ export interface Fork {
   choices: Choice[];
   position: Position;
   connections: string[]; // IDs of outgoing connections
+  audienceMedia: AudienceMedia[]; // For future use - forks might show media too
+  outputIds: string[]; // For future use
 }
 
-export type State = Scene | Fork;
+export type State = Scene | OpeningScene | EndingScene | Fork;
 
 // Update types for partial updates
 export type SceneUpdate = Partial<Omit<Scene, 'id' | 'type'>>;
+export type OpeningSceneUpdate = Partial<Omit<OpeningScene, 'id' | 'type'>>;
+export type EndingSceneUpdate = Partial<Omit<EndingScene, 'id' | 'type'>>;
 export type ForkUpdate = Partial<Omit<Fork, 'id' | 'type'>>;
-export type StateUpdate = SceneUpdate | ForkUpdate;
+export type StateUpdate = SceneUpdate | OpeningSceneUpdate | EndingSceneUpdate | ForkUpdate;
 
 export interface Output {
   id: string;

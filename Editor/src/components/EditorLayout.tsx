@@ -1,9 +1,10 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import { ProjectData, StateUpdate } from '../types';
+import React, { useState, useCallback } from 'react';
+import { ProjectData, StateUpdate, ValidationError } from '../types';
 import { StateTree } from './StateTree';
 import { Canvas } from './Canvas';
 import { PropertiesPanel } from './PropertiesPanel';
 import { Toolbar } from './Toolbar';
+import { ValidationPanel } from './ValidationPanel';
 
 import { FileOperations } from '../utils/fileOperations';
 
@@ -30,12 +31,38 @@ export const EditorLayout: React.FC<EditorLayoutProps> = ({
       id: connectionId,
       fromNodeId,
       fromOutputIndex,
-      toNodeId,
-      label: fromOutputIndex === 0 ? 'Primary' : 'Secondary'
+      toNodeId
     };
+
+    // Check if the fromNode is a fork and update its choices accordingly
+    const fromNode = projectData.states.find(state => state.id === fromNodeId);
+    let updatedStates = [...projectData.states];
+
+    if (fromNode && fromNode.type === 'fork' && fromOutputIndex < fromNode.choices.length) {
+      // Update the fork's choice at the specified output index
+      const updatedChoices = [...fromNode.choices];
+      updatedChoices[fromOutputIndex] = {
+        ...updatedChoices[fromOutputIndex],
+        nextStateId: toNodeId
+      };
+
+      updatedStates = updatedStates.map(state =>
+        state.id === fromNodeId
+          ? { ...state, choices: updatedChoices, connections: [...state.connections, connectionId] }
+          : state
+      );
+    } else if (fromNode) {
+      // Update the fromNode's connections array for non-fork nodes
+      updatedStates = updatedStates.map(state =>
+        state.id === fromNodeId
+          ? { ...state, connections: [...state.connections, connectionId] }
+          : state
+      );
+    }
 
     const updatedProject = {
       ...projectData,
+      states: updatedStates,
       connections: [...projectData.connections, newConnection]
     };
 
@@ -51,8 +78,35 @@ export const EditorLayout: React.FC<EditorLayoutProps> = ({
       return;
     }
 
+    // Check if the fromNode is a fork and clear its choice accordingly
+    const fromNode = projectData.states.find(state => state.id === connectionToDelete.fromNodeId);
+    let updatedStates = [...projectData.states];
+
+    if (fromNode && fromNode.type === 'fork' && connectionToDelete.fromOutputIndex < fromNode.choices.length) {
+      // Clear the fork's choice at the specified output index
+      const updatedChoices = [...fromNode.choices];
+      updatedChoices[connectionToDelete.fromOutputIndex] = {
+        ...updatedChoices[connectionToDelete.fromOutputIndex],
+        nextStateId: ''
+      };
+
+      updatedStates = updatedStates.map(state =>
+        state.id === fromNode.id
+          ? { ...state, choices: updatedChoices, connections: state.connections.filter(id => id !== connectionId) }
+          : state
+      );
+    } else if (fromNode) {
+      // Remove the connection ID from the fromNode's connections array for non-fork nodes
+      updatedStates = updatedStates.map(state =>
+        state.id === fromNode.id
+          ? { ...state, connections: state.connections.filter(id => id !== connectionId) }
+          : state
+      );
+    }
+
     const updatedProject = {
       ...projectData,
+      states: updatedStates,
       connections: projectData.connections.filter(conn => conn.id !== connectionId)
     };
 
@@ -61,6 +115,10 @@ export const EditorLayout: React.FC<EditorLayoutProps> = ({
 
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
+  const [showValidationPanel, setShowValidationPanel] = useState(false);
+  const [showSuccessNotification, setShowSuccessNotification] = useState(false);
+  const [fadeOutSuccess, setFadeOutSuccess] = useState(false);
 
   const handleNodeSelect = (nodeId: string | null) => {
     setSelectedNodeId(nodeId);
@@ -101,7 +159,9 @@ export const EditorLayout: React.FC<EditorLayoutProps> = ({
         { label: 'Choice B', nextStateId: '' }
       ],
       position: { x: Math.random() * 400 + 100, y: Math.random() * 400 + 100 },
-      connections: []
+      connections: [],
+      audienceMedia: [],
+      outputIds: []
     };
 
     const updatedProject = {
@@ -111,6 +171,50 @@ export const EditorLayout: React.FC<EditorLayoutProps> = ({
 
     onUpdateProject(updatedProject);
     setSelectedNodeId(newFork.id);
+  };
+
+  const handleAddOpening = () => {
+    const newOpening = {
+      id: FileOperations.generateUniqueId(),
+      type: 'opening' as const,
+      title: 'Opening Scene',
+      description: 'The story begins here.',
+      performerText: 'Enter and begin the performance.',
+      audienceMedia: [],
+      outputIds: [],
+      position: { x: Math.random() * 400 + 100, y: Math.random() * 400 + 100 },
+      connections: []
+    };
+
+    const updatedProject = {
+      ...projectData,
+      states: [...projectData.states, newOpening]
+    };
+
+    onUpdateProject(updatedProject);
+    setSelectedNodeId(newOpening.id);
+  };
+
+  const handleAddEnding = () => {
+    const newEnding = {
+      id: FileOperations.generateUniqueId(),
+      type: 'ending' as const,
+      title: 'Ending Scene',
+      description: 'The story concludes here.',
+      performerText: 'Conclude the performance.',
+      audienceMedia: [],
+      outputIds: [],
+      position: { x: Math.random() * 400 + 100, y: Math.random() * 400 + 100 },
+      connections: []
+    };
+
+    const updatedProject = {
+      ...projectData,
+      states: [...projectData.states, newEnding]
+    };
+
+    onUpdateProject(updatedProject);
+    setSelectedNodeId(newEnding.id);
   };
 
   const handleUpdateNode = (nodeId: string, updates: StateUpdate) => {
@@ -126,38 +230,93 @@ export const EditorLayout: React.FC<EditorLayoutProps> = ({
     onUpdateProject(updatedProject);
   };
 
-  const handleDeleteNode = (nodeId: string) => {
-    const updatedStates = projectData.states.filter(state => state.id !== nodeId);
-    
-    // Remove connections to this node
-    const cleanedStates = updatedStates.map(state => {
-      if (state.type === 'fork') {
-        return {
-          ...state,
-          connections: state.connections.filter(conn => conn !== nodeId),
-          choices: state.choices.map(choice => ({
+    const handleDeleteNode = (nodeId: string) => {
+    // Get all connections that involve the deleted node
+    const connectionsToRemove = projectData.connections.filter(
+      conn => conn.fromNodeId === nodeId || conn.toNodeId === nodeId
+    );
+
+    // Get the IDs of connections to remove
+    const connectionIdsToRemove = connectionsToRemove.map(conn => conn.id);
+
+    // Remove connections from the connections array
+    const updatedConnections = projectData.connections.filter(
+      conn => !connectionIdsToRemove.includes(conn.id)
+    );
+
+    // Update remaining states
+    const updatedStates = projectData.states
+      .filter(state => state.id !== nodeId) // Remove the deleted node
+      .map(state => {
+        if (state.type === 'fork') {
+          // For fork nodes, update choices and connections
+          const updatedChoices = state.choices.map(choice => ({
             ...choice,
             nextStateId: choice.nextStateId === nodeId ? '' : choice.nextStateId
-          }))
-        };
-      } else {
-        return {
-          ...state,
-          connections: state.connections.filter(conn => conn !== nodeId)
-        };
-      }
-    });
+          }));
+
+          const updatedConnections = state.connections.filter(
+            connId => !connectionIdsToRemove.includes(connId)
+          );
+
+          return {
+            ...state,
+            choices: updatedChoices,
+            connections: updatedConnections
+          };
+        } else {
+          // For other node types, just update connections
+          const updatedConnections = state.connections.filter(
+            connId => !connectionIdsToRemove.includes(connId)
+          );
+
+          return {
+            ...state,
+            connections: updatedConnections
+          };
+        }
+      });
 
     const updatedProject = {
       ...projectData,
-      states: cleanedStates
+      states: updatedStates,
+      connections: updatedConnections
     };
 
     onUpdateProject(updatedProject);
-    
+
     if (selectedNodeId === nodeId) {
       setSelectedNodeId(null);
     }
+  };
+
+  const handleValidateProject = () => {
+    const errors = FileOperations.validateProject(projectData);
+    setValidationErrors(errors);
+
+    if (errors.length === 0) {
+      // Reset fade state and show success notification
+      setFadeOutSuccess(false);
+      setShowSuccessNotification(true);
+
+      // Start fade out after 2 seconds
+      setTimeout(() => {
+        setFadeOutSuccess(true);
+      }, 2000);
+
+      // Hide completely after fade animation (2.3 seconds total)
+      setTimeout(() => {
+        setShowSuccessNotification(false);
+        setFadeOutSuccess(false);
+      }, 2300);
+    } else {
+      // Show error panel
+      setShowValidationPanel(true);
+    }
+  };
+
+  const handleCloseValidationPanel = () => {
+    setShowValidationPanel(false);
   };
 
 
@@ -175,8 +334,11 @@ export const EditorLayout: React.FC<EditorLayoutProps> = ({
         onLoadShow={onLoadShow}
         onSave={onSaveShow}
         onExport={onExportShow}
+        onValidate={handleValidateProject}
         onAddScene={handleAddScene}
         onAddFork={handleAddFork}
+        onAddOpening={handleAddOpening}
+        onAddEnding={handleAddEnding}
       />
       
       <div className="editor-main">
@@ -204,10 +366,28 @@ export const EditorLayout: React.FC<EditorLayoutProps> = ({
         <div className="editor-right-panel">
           <PropertiesPanel
             node={selectedNode}
+            connections={projectData.connections}
+            states={projectData.states}
             onUpdateNode={handleUpdateNode}
           />
         </div>
       </div>
+
+      {showSuccessNotification && (
+        <div className={fadeOutSuccess ? 'fade-out' : ''}>
+          <ValidationPanel
+            errors={[]}
+            onClose={() => {}}
+          />
+        </div>
+      )}
+
+      {showValidationPanel && (
+        <ValidationPanel
+          errors={validationErrors}
+          onClose={handleCloseValidationPanel}
+        />
+      )}
     </div>
   );
 };

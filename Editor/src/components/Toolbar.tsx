@@ -1,5 +1,5 @@
 import React from 'react';
-import { Save, Download, Plus, Play, GitBranch, FileText, FolderOpen } from 'lucide-react';
+import { Save, Download, Plus, Play, GitBranch, FileText, FolderOpen, Square } from 'lucide-react';
 
 interface ToolbarProps {
   projectName: string;
@@ -8,8 +8,11 @@ interface ToolbarProps {
   onLoadShow: () => void;
   onSave: () => void;
   onExport: () => void;
+  onValidate: () => void;
   onAddScene: () => void;
   onAddFork: () => void;
+  onAddOpening: () => void;
+  onAddEnding: () => void;
 }
 
 export const Toolbar: React.FC<ToolbarProps> = ({
@@ -19,8 +22,11 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onLoadShow,
   onSave,
   onExport,
+  onValidate,
   onAddScene,
-  onAddFork
+  onAddFork,
+  onAddOpening,
+  onAddEnding
 }) => {
   return (
     <div className="toolbar">
@@ -62,13 +68,31 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             Scene
           </button>
           
-          <button 
+          <button
             onClick={onAddFork}
             className="btn btn-outline"
             title="Add Choice"
           >
             <GitBranch size={16} />
             Choice
+          </button>
+
+          <button
+            onClick={onAddOpening}
+            className="btn btn-outline"
+            title="Add Opening Scene"
+          >
+            <Square size={16} />
+            Opening
+          </button>
+
+          <button
+            onClick={onAddEnding}
+            className="btn btn-outline"
+            title="Add Ending Scene"
+          >
+            <Square size={16} />
+            Ending
           </button>
         </div>
       </div>
@@ -81,6 +105,15 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         >
           <Save size={16} />
           {hasUnsavedChanges ? 'Save*' : 'Save'}
+        </button>
+
+        <button
+          onClick={onValidate}
+          className="btn btn-outline"
+          title="Validate Show"
+        >
+          <Play size={16} />
+          Validate
         </button>
 
         <button

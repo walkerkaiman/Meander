@@ -56,8 +56,23 @@ export const ValidationPanel: React.FC<ValidationPanelProps> = ({
     }
   };
 
+  // If no errors, show success message
   if (errors.length === 0) {
-    return null;
+    return (
+      <div className="validation-panel success-panel">
+        <div className="validation-header">
+          <div className="validation-title">
+            <h3>Validation Successful</h3>
+          </div>
+        </div>
+        <div className="validation-content">
+          <div className="validation-success-message">
+            <CheckCircle size={24} />
+            <span>Your show is ready to export!</span>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   const errorCount = errors.filter(e => getErrorSeverity(e.type) === 'error').length;

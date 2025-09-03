@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { State, Scene, Fork, Position, Connection, StateUpdate } from '../types';
-import { Play, GitBranch, ZoomIn, ZoomOut, Move } from 'lucide-react';
+import { State, Scene, OpeningScene, EndingScene, Fork, Position, Connection, StateUpdate } from '../types';
+import { Play, GitBranch, ZoomIn, ZoomOut, Move, Square } from 'lucide-react';
 
 interface CanvasProps {
   states: State[];
@@ -9,7 +9,7 @@ interface CanvasProps {
   onNodeSelect: (nodeId: string | null) => void;
   onUpdateNode: (nodeId: string, updates: StateUpdate) => void;
 
-  onCreateConnection: (fromNodeId: string, fromOutputIndex: number, toNodeId: string) => void;
+  onCreateConnection: (fromNodeId: string, fromOutputIndex: number, toNodeId: string) => string;
   onDeleteConnection: (connectionId: string) => void;
 }
 
@@ -224,7 +224,9 @@ export const Canvas: React.FC<CanvasProps> = ({
 
       // Create the connection
       const newConnectionId = onCreateConnection(connectionDragStart.nodeId, connectionDragStart.outputIndex, nodeId);
-      setLastConnectionCreated(newConnectionId);
+      if (newConnectionId) {
+        setLastConnectionCreated(newConnectionId);
+      }
 
       // Reset drag state
       setIsDraggingConnection(false);
@@ -268,26 +270,23 @@ export const Canvas: React.FC<CanvasProps> = ({
         onMouseUp={(e) => handleInputMouseUp(e, scene.id)}
       />
 
-      {/* Output connection points */}
-      {[0, 1].map((outputIndex) => (
-        <div
-          key={outputIndex}
-          className="connection-point output-point"
-          style={{
-            position: 'absolute',
-            right: '-8px',
-            top: `${25 + (outputIndex * 25)}px`,
-            width: '16px',
-            height: '16px',
-            borderRadius: '50%',
-            backgroundColor: '#3b82f6',
-            border: '2px solid #1a1a2e',
-            cursor: 'pointer',
-            zIndex: 10
-          }}
-          onMouseDown={(e) => handleOutputMouseDown(e, scene.id, outputIndex)}
-        />
-      ))}
+      {/* Output connection point - only one for regular scenes */}
+      <div
+        className="connection-point output-point"
+        style={{
+          position: 'absolute',
+          right: '-8px',
+          top: '40px',
+          width: '16px',
+          height: '16px',
+          borderRadius: '50%',
+          backgroundColor: '#3b82f6',
+          border: '2px solid #1a1a2e',
+          cursor: 'pointer',
+          zIndex: 10
+        }}
+        onMouseDown={(e) => handleOutputMouseDown(e, scene.id, 0)}
+      />
 
       <div className="node-header">
         <Play size={16} />
@@ -300,6 +299,100 @@ export const Canvas: React.FC<CanvasProps> = ({
         {scene.audienceMedia.length > 0 && (
           <div className="node-media">
             {scene.audienceMedia.length} media files
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  const renderOpeningScene = (opening: OpeningScene) => (
+    <div
+      key={opening.id}
+      className={`canvas-node opening-node ${selectedNodeId === opening.id ? 'selected' : ''}`}
+      style={{
+        left: opening.position.x,
+        top: opening.position.y
+      }}
+      onMouseDown={(e) => handleNodeMouseDown(e, opening.id)}
+    >
+      {/* No input connection point for opening scenes */}
+
+      {/* Output connection point */}
+      <div
+        className="connection-point output-point"
+        style={{
+          position: 'absolute',
+          right: '-8px',
+          top: '40px',
+          width: '16px',
+          height: '16px',
+          borderRadius: '50%',
+          backgroundColor: '#3b82f6',
+          border: '2px solid #1a1a2e',
+          cursor: 'pointer',
+          zIndex: 10
+        }}
+        onMouseDown={(e) => handleOutputMouseDown(e, opening.id, 0)}
+      />
+
+      <div className="node-header">
+        <Square size={16} />
+        <span className="node-title">{opening.title || 'Opening Scene'}</span>
+      </div>
+      <div className="node-content">
+        <div className="node-description">
+          {opening.description || 'The story begins here'}
+        </div>
+        {opening.audienceMedia.length > 0 && (
+          <div className="node-media">
+            {opening.audienceMedia.length} media files
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  const renderEndingScene = (ending: EndingScene) => (
+    <div
+      key={ending.id}
+      className={`canvas-node ending-node ${selectedNodeId === ending.id ? 'selected' : ''}`}
+      style={{
+        left: ending.position.x,
+        top: ending.position.y
+      }}
+      onMouseDown={(e) => handleNodeMouseDown(e, ending.id)}
+    >
+      {/* Input connection point */}
+      <div
+        className="connection-point input-point"
+        style={{
+          position: 'absolute',
+          left: '-8px',
+          top: '40px',
+          width: '16px',
+          height: '16px',
+          borderRadius: '50%',
+          backgroundColor: '#10b981',
+          border: '2px solid #1a1a2e',
+          cursor: 'pointer',
+          zIndex: 10
+        }}
+        onMouseUp={(e) => handleInputMouseUp(e, ending.id)}
+      />
+
+      {/* No output connection point for ending scenes */}
+
+      <div className="node-header">
+        <Square size={16} />
+        <span className="node-title">{ending.title || 'Ending Scene'}</span>
+      </div>
+      <div className="node-content">
+        <div className="node-description">
+          {ending.description || 'The story concludes here'}
+        </div>
+        {ending.audienceMedia.length > 0 && (
+          <div className="node-media">
+            {ending.audienceMedia.length} media files
           </div>
         )}
       </div>
@@ -456,17 +549,7 @@ export const Canvas: React.FC<CanvasProps> = ({
               markerEnd="url(#arrowhead)"
               style={{ pointerEvents: 'none' }}
             />
-            {connection.label && (
-              <text
-                x={(startX + endX) / 2}
-                y={(startY + endY) / 2 - 10}
-                textAnchor="middle"
-                fill="#3b82f6"
-                fontSize="12"
-              >
-                {connection.label}
-              </text>
-            )}
+
 
             {/* Delete overlay when hovering */}
             {hoveredConnectionId === connection.id && (
@@ -651,9 +734,20 @@ export const Canvas: React.FC<CanvasProps> = ({
         
         {renderConnections()}
         
-        {states.map(state => 
-          state.type === 'scene' ? renderScene(state) : renderFork(state)
-        )}
+        {states.map(state => {
+          switch (state.type) {
+            case 'scene':
+              return renderScene(state);
+            case 'opening':
+              return renderOpeningScene(state);
+            case 'ending':
+              return renderEndingScene(state);
+            case 'fork':
+              return renderFork(state);
+            default:
+              return null;
+          }
+        })}
         
         {states.length === 0 && (
           <div className="canvas-empty">

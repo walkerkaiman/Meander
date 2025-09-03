@@ -83,6 +83,13 @@ function App() {
   const handleExportShow = async () => {
     if (!projectData) return;
 
+    // First validate the project
+    const validationErrors = FileOperations.validateProject(projectData);
+    if (validationErrors.length > 0) {
+      alert(`Cannot export show due to validation errors:\n\n${validationErrors.map(err => `• ${err.message}`).join('\n')}\n\nPlease fix these issues and try again.`);
+      return;
+    }
+
     setIsLoading(true);
     try {
       await FileOperations.exportShow(projectData);

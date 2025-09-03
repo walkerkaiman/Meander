@@ -916,6 +916,48 @@ body {
   background: #fef2f2;
 }
 
+/* Media upload and management */
+.media-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.media-info {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 16px;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.media-info p {
+  margin: 4px 0;
+}
+
+.media-embedded-indicator,
+.media-reference-indicator {
+  font-size: 12px;
+  margin-left: 4px;
+}
+
+.media-size {
+  color: #64748b;
+  font-size: 0.8rem;
+  margin-left: 8px;
+}
+
+.media-item {
+  position: relative;
+}
+
+.media-item .media-icon {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 /* Validation panel */
 .validation-panel {
   position: fixed;
@@ -928,6 +970,59 @@ body {
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
   border: 1px solid #e2e8f0;
   z-index: 1000;
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Success panel styling */
+.success-panel {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+  border: 1px solid #059669;
+}
+
+.success-panel .validation-header {
+  background: rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.success-panel .validation-title h3 {
+  color: white;
+}
+
+.validation-success-message {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 20px;
+  color: white;
+}
+
+/* Fade animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+}
+
+/* Apply fade out when hiding */
+.fade-out {
+  animation: fadeOut 0.3s ease-in forwards;
 }
 
 .validation-header {
