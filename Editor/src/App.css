@@ -672,6 +672,10 @@ body {
   color: #e0e0e0;
 }
 
+.node-header-bg {
+  stroke: none !important;
+}
+
 .node-title {
   font-size: 0.9rem;
   white-space: nowrap;
@@ -1357,4 +1361,15 @@ body {
     right: 20px;
     left: 20px;
   }
+}
+
+/* Node stroke overrides for SVG */
+.scene-node rect {
+  stroke: #10b981;
+}
+.fork-node rect {
+  stroke: #facc15;
+}
+.opening-node rect, .ending-node rect {
+  stroke: #8b5cf6;
 }

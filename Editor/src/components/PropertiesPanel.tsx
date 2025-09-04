@@ -64,28 +64,6 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
           rows={3}
         />
       </div>
-
-      <div className="property-group">
-        <label>Position</label>
-        <div className="position-inputs">
-          <input
-            type="number"
-            value={scene.position.x}
-            onChange={(e) => handleUpdate({
-              position: { ...scene.position, x: parseInt(e.target.value) || 0 }
-            })}
-            placeholder="X"
-          />
-          <input
-            type="number"
-            value={scene.position.y}
-            onChange={(e) => handleUpdate({
-              position: { ...scene.position, y: parseInt(e.target.value) || 0 }
-            })}
-            placeholder="Y"
-          />
-        </div>
-      </div>
     </div>
   );
 
@@ -120,28 +98,6 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
           rows={3}
         />
       </div>
-
-      <div className="property-group">
-        <label>Position</label>
-        <div className="position-inputs">
-          <input
-            type="number"
-            value={opening.position.x}
-            onChange={(e) => handleUpdate({
-              position: { ...opening.position, x: parseInt(e.target.value) || 0 }
-            })}
-            placeholder="X"
-          />
-          <input
-            type="number"
-            value={opening.position.y}
-            onChange={(e) => handleUpdate({
-              position: { ...opening.position, y: parseInt(e.target.value) || 0 }
-            })}
-            placeholder="Y"
-          />
-        </div>
-      </div>
     </div>
   );
 
@@ -175,28 +131,6 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
           placeholder="Cues for performers"
           rows={3}
         />
-      </div>
-
-      <div className="property-group">
-        <label>Position</label>
-        <div className="position-inputs">
-          <input
-            type="number"
-            value={ending.position.x}
-            onChange={(e) => handleUpdate({
-              position: { ...ending.position, x: parseInt(e.target.value) || 0 }
-            })}
-            placeholder="X"
-          />
-          <input
-            type="number"
-            value={ending.position.y}
-            onChange={(e) => handleUpdate({
-              position: { ...ending.position, y: parseInt(e.target.value) || 0 }
-            })}
-            placeholder="Y"
-          />
-        </div>
       </div>
     </div>
   );

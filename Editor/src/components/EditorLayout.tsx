@@ -1,7 +1,8 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { ProjectData, StateUpdate, ValidationError } from '../types';
 import { StateTree } from './StateTree';
-import { Canvas } from './Canvas';
+import SlimCanvas from './SlimCanvas';
+const Canvas = SlimCanvas;
 import { PropertiesPanel } from './PropertiesPanel';
 import { Toolbar } from './Toolbar';
 import { ValidationPanel } from './ValidationPanel';

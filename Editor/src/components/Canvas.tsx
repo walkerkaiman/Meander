@@ -1,6 +1,9 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { State, Scene, OpeningScene, EndingScene, Fork, Position, Connection, StateUpdate } from '../types';
 import { ZoomIn, ZoomOut, Move, Maximize2 } from 'lucide-react';
+import CanvasViewport from './CanvasViewport';
+import Node from './Node';
+import Connection from './Connection';
 
 interface CanvasProps {
   states: State[];
@@ -24,7 +27,6 @@ export const Canvas: React.FC<CanvasProps> = ({
 }) => {
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState<Position>({ x: 0, y: 0 });
-  const [canvasTransform, setCanvasTransform] = useState({ scale: 1, x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [lastPanPosition, setLastPanPosition] = useState<Position>({ x: 0, y: 0 });
   const [isDraggingConnection, setIsDraggingConnection] = useState(false);
@@ -66,8 +68,8 @@ export const Canvas: React.FC<CanvasProps> = ({
     const mouseY = e.clientY - canvasRect.top;
     
     // Calculate offset from mouse to node position in transformed coordinates
-    const transformedNodeX = node.position.x * canvasTransform.scale + canvasTransform.x;
-    const transformedNodeY = node.position.y * canvasTransform.scale + canvasTransform.y;
+    const transformedNodeX = node.position.x * 1 + 0; // Assuming canvasTransform.x is 0 for now
+    const transformedNodeY = node.position.y * 1 + 0; // Assuming canvasTransform.y is 0 for now
     
     const offsetX = mouseX - transformedNodeX;
     const offsetY = mouseY - transformedNodeY;
@@ -75,14 +77,14 @@ export const Canvas: React.FC<CanvasProps> = ({
     setDragOffset({ x: offsetX, y: offsetY });
     setDraggedNodeId(nodeId);
     onNodeSelect(nodeId);
-  }, [states, onNodeSelect, canvasTransform]);
+  }, [states, onNodeSelect]);
 
     const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (isDraggingConnection) {
       const rect = canvasRef.current?.getBoundingClientRect();
       if (rect) {
-        const canvasX = (e.clientX - rect.left - canvasTransform.x) / canvasTransform.scale;
-        const canvasY = (e.clientY - rect.top - canvasTransform.y) / canvasTransform.scale;
+        const canvasX = (e.clientX - rect.left - 0) / 1; // Assuming canvasTransform.x is 0
+        const canvasY = (e.clientY - rect.top - 0) / 1; // Assuming canvasTransform.y is 0
         setConnectionDragEnd({ x: canvasX, y: canvasY });
       }
     } else if (isPanning) {
@@ -91,11 +93,11 @@ export const Canvas: React.FC<CanvasProps> = ({
       const deltaY = e.clientY - lastPanPosition.y;
 
       // Direct update for immediate response
-      setCanvasTransform(prev => ({
-        ...prev,
-        x: prev.x + deltaX,
-        y: prev.y + deltaY
-      }));
+      // setCanvasTransform(prev => ({
+      //   ...prev,
+      //   x: prev.x + deltaX,
+      //   y: prev.y + deltaY
+      // }));
 
       setLastPanPosition({ x: e.clientX, y: e.clientY });
     } else if (draggedNodeId) {
@@ -106,8 +108,8 @@ export const Canvas: React.FC<CanvasProps> = ({
       const mouseX = e.clientX - rect.left;
       const mouseY = e.clientY - rect.top;
       
-      const newX = (mouseX - dragOffset.x - canvasTransform.x) / canvasTransform.scale;
-      const newY = (mouseY - dragOffset.y - canvasTransform.y) / canvasTransform.scale;
+      const newX = (mouseX - dragOffset.x - 0) / 1; // Assuming canvasTransform.x is 0
+      const newY = (mouseY - dragOffset.y - 0) / 1; // Assuming canvasTransform.y is 0
 
       // Snap to grid (20px)
       const snappedX = Math.round(newX / 20) * 20;
@@ -115,7 +117,7 @@ export const Canvas: React.FC<CanvasProps> = ({
 
       onUpdateNode(draggedNodeId, { position: { x: snappedX, y: snappedY } });
     }
-  }, [isDraggingConnection, isPanning, lastPanPosition, draggedNodeId, dragOffset, onUpdateNode, canvasTransform]);
+  }, [isDraggingConnection, isPanning, lastPanPosition, draggedNodeId, dragOffset, onUpdateNode]);
 
   const handleMouseUp = useCallback((e: React.MouseEvent) => {
     // Only reset hover if we're clicking on the actual canvas background
@@ -153,19 +155,19 @@ export const Canvas: React.FC<CanvasProps> = ({
     const mouseY = e.clientY - rect.top;
     
     const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
-    const newScale = Math.max(0.7, Math.min(1.5, canvasTransform.scale * zoomFactor));
+    const newScale = Math.max(0.7, Math.min(1.5, 1 * zoomFactor));
     
     // Calculate new transform to zoom towards mouse position
-    const scaleDiff = newScale / canvasTransform.scale;
-    const newX = mouseX - (mouseX - canvasTransform.x) * scaleDiff;
-    const newY = mouseY - (mouseY - canvasTransform.y) * scaleDiff;
+    const scaleDiff = newScale / 1;
+    const newX = mouseX - (mouseX - 0) * scaleDiff;
+    const newY = mouseY - (mouseY - 0) * scaleDiff;
     
-    setCanvasTransform({
-      scale: newScale,
-      x: newX,
-      y: newY
-    });
-  }, [canvasTransform]);
+    // setCanvasTransform({
+    //   scale: newScale,
+    //   x: newX,
+    //   y: newY
+    // });
+  }, []);
 
   // Add wheel event listener with passive: false to allow preventDefault
   useEffect(() => {
@@ -192,25 +194,34 @@ export const Canvas: React.FC<CanvasProps> = ({
 
   const handleDoubleClick = useCallback(() => {
     // Reset zoom and pan
-    setCanvasTransform({ scale: 1, x: 0, y: 0 });
+    // setCanvasTransform({ scale: 1, x: 0, y: 0 });
   }, []);
 
   const zoomIn = useCallback(() => {
-    setCanvasTransform(prev => ({
-      ...prev,
-      scale: Math.min(1.5, prev.scale * 1.2)
-    }));
+    // setCanvasTransform(prev => ({
+    //   ...prev,
+    //   scale: Math.min(1.5, prev.scale * 1.2)
+    // }));
   }, []);
 
   const zoomOut = useCallback(() => {
-    setCanvasTransform(prev => ({
-      ...prev,
-      scale: Math.max(0.7, prev.scale / 1.2)
-    }));
+    // setCanvasTransform(prev => ({
+    //   ...prev,
+    //   scale: Math.max(0.7, prev.scale / 1.2)
+    // }));
   }, []);
 
   const resetView = useCallback(() => {
-    setCanvasTransform({ scale: 1, x: 0, y: 0 });
+    // Reset to center of available canvas space (accounting for sidebars)
+    const leftSidebarWidth = 300;
+    const rightSidebarWidth = 350;
+    const availableCanvasWidth = window.innerWidth - leftSidebarWidth - rightSidebarWidth;
+    
+    // Center the view in the available space
+    const x = leftSidebarWidth + (availableCanvasWidth / 2);
+    const y = 0;
+    
+    // setCanvasTransform({ scale: 1, x, y });
   }, []);
 
   const fitAllNodesInView = useCallback(() => {
@@ -242,27 +253,33 @@ export const Canvas: React.FC<CanvasProps> = ({
     const contentWidth = bounds.maxX - bounds.minX + padding * 2;
     const contentHeight = bounds.maxY - bounds.minY + padding * 2;
 
-    // Get canvas dimensions
+    // Get canvas dimensions - account for sidebars
     const canvas = canvasRef.current;
     if (!canvas) return;
     const canvasRect = canvas.getBoundingClientRect();
-    const canvasWidth = canvasRect.width;
-    const canvasHeight = canvasRect.height;
+    
+    // Estimate sidebar widths (left sidebar ~300px, right sidebar ~350px)
+    // These are approximate values based on typical sidebar widths
+    const leftSidebarWidth = 300;
+    const rightSidebarWidth = 350;
+    const availableCanvasWidth = canvasRect.width - leftSidebarWidth - rightSidebarWidth;
+    const availableCanvasHeight = canvasRect.height;
 
-    // Calculate scale to fit content in canvas
-    const scaleX = canvasWidth / contentWidth;
-    const scaleY = canvasHeight / contentHeight;
+    // Calculate scale to fit content in available canvas space
+    const scaleX = availableCanvasWidth / contentWidth;
+    const scaleY = availableCanvasHeight / contentHeight;
     const scale = Math.min(scaleX, scaleY, 1); // Don't scale up beyond 100%
 
     // Calculate center position
     const centerX = (bounds.minX + bounds.maxX) / 2;
     const centerY = (bounds.minY + bounds.maxY) / 2;
 
-    // Calculate transform to center content
-    const x = (canvasWidth / 2) - (centerX * scale);
-    const y = (canvasHeight / 2) - (centerY * scale);
+    // Calculate transform to center content in available space
+    // Account for left sidebar offset
+    const x = (availableCanvasWidth / 2) - (centerX * scale) + leftSidebarWidth;
+    const y = (availableCanvasHeight / 2) - (centerY * scale);
 
-    setCanvasTransform({ scale, x, y });
+    // setCanvasTransform({ scale, x, y });
   }, [states]);
 
   // Auto-fit all nodes in view when states change (new nodes added/removed)
@@ -328,385 +345,92 @@ export const Canvas: React.FC<CanvasProps> = ({
 
   const renderScene = (scene: Scene) => {
     // Apply canvas transform manually to maintain crisp vector rendering
-    const nodeX = (scene.position.x * canvasTransform.scale) + canvasTransform.x + 5000;
-    const nodeY = (scene.position.y * canvasTransform.scale) + canvasTransform.y + 5000;
+    const nodeX = (scene.position.x * 1) + 0 + 5000;
+    const nodeY = (scene.position.y * 1) + 0 + 5000;
 
     return (
-      <g
+      <Node
         key={scene.id}
-        className={`canvas-node scene-node ${selectedNodeId === scene.id ? 'selected' : ''}`}
-        transform={`translate(${nodeX}, ${nodeY})`}
-        onMouseDown={(e) => handleNodeMouseDown(e, scene.id)}
-        style={{ cursor: 'move' }}
-      >
-        {/* Node background rectangle */}
-                 <rect
-           x="0"
-           y="0"
-           width="150"
-           height="80"
-           rx="8"
-           ry="8"
-           fill="#1a1a2e"
-           stroke="#10b981"
-           strokeWidth={selectedNodeId === scene.id ? "3" : "1"}
-         />
-
-        {/* Input connection point - center at (-8, 40) */}
-        <circle
-          cx="-8"
-          cy="40"
-          r="8"
-          fill="#10b981"
-          stroke="#1a1a2e"
-          strokeWidth="2"
-          style={{ cursor: 'pointer' }}
-          onMouseUp={(e) => handleInputMouseUp(e, scene.id)}
-        />
-
-        {/* Output connection point - center at (158, 40) */}
-        <circle
-          cx="158"
-          cy="40"
-          r="8"
-          fill="#3b82f6"
-          stroke="#1a1a2e"
-          strokeWidth="2"
-          style={{ cursor: 'pointer' }}
-          onMouseDown={(e) => handleOutputMouseDown(e, scene.id, 0)}
-        />
-
-        {/* Node header background */}
-        <rect
-          x="8"
-          y="8"
-          width="134"
-          height="24"
-          rx="4"
-          ry="4"
-          fill="#2d2d44"
-        />
-
-        {/* Node title text */}
-        <text
-          x="75"
-          y="24"
-          textAnchor="middle"
-          fontSize="12"
-          fill="#e0e0e0"
-          fontWeight="500"
-        >
-          {scene.title || 'Untitled Scene'}
-        </text>
-
-        
-
-        {/* Description text */}
-        <text
-          x="75"
-          y="50"
-          textAnchor="middle"
-          fontSize="10"
-          fill="#a0a0a0"
-        >
-          {scene.description ? (scene.description.length > 20 ? scene.description.substring(0, 20) + '...' : scene.description) : 'No description'}
-        </text>
-
-        {/* Media indicator */}
-        {scene.audienceMedia.length > 0 && (
-          <text
-            x="75"
-            y="65"
-            textAnchor="middle"
-            fontSize="10"
-            fill="#6b7280"
-          >
-            {scene.audienceMedia.length} media
-          </text>
-        )}
-      </g>
+        id={scene.id}
+        type="scene"
+        title={scene.title || 'Untitled Scene'}
+        description={scene.description}
+        audienceMedia={scene.audienceMedia}
+        position={scene.position}
+        selected={selectedNodeId === scene.id}
+        onSelect={onNodeSelect}
+        onUpdate={onUpdateNode}
+        onOutputMouseDown={(e) => handleOutputMouseDown(e, scene.id, 0)}
+        onInputMouseUp={(e) => handleInputMouseUp(e, scene.id)}
+      />
     );
   };
 
   const renderOpeningScene = (opening: OpeningScene) => {
     // Apply canvas transform manually to maintain crisp vector rendering
-    const nodeX = (opening.position.x * canvasTransform.scale) + canvasTransform.x + 5000;
-    const nodeY = (opening.position.y * canvasTransform.scale) + canvasTransform.y + 5000;
+    const nodeX = (opening.position.x * 1) + 0 + 5000;
+    const nodeY = (opening.position.y * 1) + 0 + 5000;
 
     return (
-      <g
+      <Node
         key={opening.id}
-        className={`canvas-node opening-node ${selectedNodeId === opening.id ? 'selected' : ''}`}
-        transform={`translate(${nodeX}, ${nodeY})`}
-        onMouseDown={(e) => handleNodeMouseDown(e, opening.id)}
-        style={{ cursor: 'move' }}
-      >
-        {/* Node background rectangle */}
-                 <rect
-           x="0"
-           y="0"
-           width="150"
-           height="80"
-           rx="8"
-           ry="8"
-           fill="#1a1a2e"
-           stroke="#a855f7"
-           strokeWidth={selectedNodeId === opening.id ? "3" : "1"}
-         />
-
-        {/* Output connection point - center at (158, 40) */}
-        <circle
-          cx="158"
-          cy="40"
-          r="8"
-          fill="#3b82f6"
-          stroke="#1a1a2e"
-          strokeWidth="2"
-          style={{ cursor: 'pointer' }}
-          onMouseDown={(e) => handleOutputMouseDown(e, opening.id, 0)}
-        />
-
-        {/* Node header background */}
-        <rect
-          x="8"
-          y="8"
-          width="134"
-          height="24"
-          rx="4"
-          ry="4"
-          fill="#2d2d44"
-        />
-
-        {/* Node title text */}
-        <text
-          x="75"
-          y="24"
-          textAnchor="middle"
-          fontSize="12"
-          fill="#e0e0e0"
-          fontWeight="500"
-        >
-          {opening.title || 'Opening Scene'}
-        </text>
-
-        {/* Description text */}
-        <text
-          x="75"
-          y="50"
-          textAnchor="middle"
-          fontSize="10"
-          fill="#a0a0a0"
-        >
-          {opening.description ? (opening.description.length > 20 ? opening.description.substring(0, 20) + '...' : opening.description) : 'The story begins here'}
-        </text>
-
-        {/* Media indicator */}
-        {opening.audienceMedia.length > 0 && (
-          <text
-            x="75"
-            y="65"
-            textAnchor="middle"
-            fontSize="10"
-            fill="#6b7280"
-          >
-            {opening.audienceMedia.length} media
-          </text>
-        )}
-      </g>
+        id={opening.id}
+        type="opening"
+        title={opening.title || 'Opening Scene'}
+        description={opening.description}
+        audienceMedia={opening.audienceMedia}
+        position={opening.position}
+        selected={selectedNodeId === opening.id}
+        onSelect={onNodeSelect}
+        onUpdate={onUpdateNode}
+        onOutputMouseDown={(e) => handleOutputMouseDown(e, opening.id, 0)}
+        onInputMouseUp={(e) => handleInputMouseUp(e, opening.id)}
+      />
     );
   };
 
   const renderEndingScene = (ending: EndingScene) => {
     // Apply canvas transform manually to maintain crisp vector rendering
-    const nodeX = (ending.position.x * canvasTransform.scale) + canvasTransform.x + 5000;
-    const nodeY = (ending.position.y * canvasTransform.scale) + canvasTransform.y + 5000;
+    const nodeX = (ending.position.x * 1) + 0 + 5000;
+    const nodeY = (ending.position.y * 1) + 0 + 5000;
 
     return (
-      <g
+      <Node
         key={ending.id}
-        className={`canvas-node ending-node ${selectedNodeId === ending.id ? 'selected' : ''}`}
-        transform={`translate(${nodeX}, ${nodeY})`}
-        onMouseDown={(e) => handleNodeMouseDown(e, ending.id)}
-        style={{ cursor: 'move' }}
-      >
-        {/* Node background rectangle */}
-                 <rect
-           x="0"
-           y="0"
-           width="150"
-           height="80"
-           rx="8"
-           ry="8"
-           fill="#1a1a2e"
-           stroke="#a855f7"
-           strokeWidth={selectedNodeId === ending.id ? "3" : "1"}
-         />
-
-        {/* Input connection point - center at (-8, 40) */}
-        <circle
-          cx="-8"
-          cy="40"
-          r="8"
-          fill="#10b981"
-          stroke="#1a1a2e"
-          strokeWidth="2"
-          style={{ cursor: 'pointer' }}
-          onMouseUp={(e) => handleInputMouseUp(e, ending.id)}
-        />
-
-        {/* Node header background */}
-        <rect
-          x="8"
-          y="8"
-          width="134"
-          height="24"
-          rx="4"
-          ry="4"
-          fill="#2d2d44"
-        />
-
-        {/* Node title text */}
-        <text
-          x="75"
-          y="24"
-          textAnchor="middle"
-          fontSize="12"
-          fill="#e0e0e0"
-          fontWeight="500"
-        >
-          {ending.title || 'Ending Scene'}
-        </text>
-
-        {/* Description text */}
-        <text
-          x="75"
-          y="50"
-          textAnchor="middle"
-          fontSize="10"
-          fill="#a0a0a0"
-        >
-          {ending.description ? (ending.description.length > 20 ? ending.description.substring(0, 20) + '...' : ending.description) : 'The story concludes here'}
-        </text>
-
-        {/* Media indicator */}
-        {ending.audienceMedia.length > 0 && (
-          <text
-            x="75"
-            y="65"
-            textAnchor="middle"
-            fontSize="10"
-            fill="#6b7280"
-          >
-            {ending.audienceMedia.length} media
-          </text>
-        )}
-      </g>
+        id={ending.id}
+        type="ending"
+        title={ending.title || 'Ending Scene'}
+        description={ending.description}
+        audienceMedia={ending.audienceMedia}
+        position={ending.position}
+        selected={selectedNodeId === ending.id}
+        onSelect={onNodeSelect}
+        onUpdate={onUpdateNode}
+        onInputMouseUp={(e) => handleInputMouseUp(e, ending.id)}
+      />
     );
   };
 
   const renderFork = (fork: Fork) => {
     // Apply canvas transform manually to maintain crisp vector rendering
-    const nodeX = (fork.position.x * canvasTransform.scale) + canvasTransform.x + 5000;
-    const nodeY = (fork.position.y * canvasTransform.scale) + canvasTransform.y + 5000;
+    const nodeX = (fork.position.x * 1) + 0 + 5000;
+    const nodeY = (fork.position.y * 1) + 0 + 5000;
 
     return (
-      <g
+      <Node
         key={fork.id}
-        className={`canvas-node fork-node ${selectedNodeId === fork.id ? 'selected' : ''}`}
-        transform={`translate(${nodeX}, ${nodeY})`}
-        onMouseDown={(e) => handleNodeMouseDown(e, fork.id)}
-        style={{ cursor: 'move' }}
-      >
-        {/* Node background rectangle */}
-                 <rect
-           x="0"
-           y="0"
-           width="150"
-           height="80"
-           rx="8"
-           ry="8"
-           fill="#1a1a2e"
-           stroke="#f59e0b"
-           strokeWidth={selectedNodeId === fork.id ? "3" : "1"}
-         />
-
-        {/* Input connection point - center at (-8, 40) */}
-        <circle
-          cx="-8"
-          cy="40"
-          r="8"
-          fill="#10b981"
-          stroke="#1a1a2e"
-          strokeWidth="2"
-          style={{ cursor: 'pointer' }}
-          onMouseUp={(e) => handleInputMouseUp(e, fork.id)}
-        />
-
-        {/* Output connection points - dynamically generated based on choices */}
-        {fork.choices.map((_, outputIndex) => (
-          <circle
-            key={outputIndex}
-            cx="158"
-            cy={25 + (outputIndex * 25)}
-            r="8"
-            fill="#3b82f6"
-            stroke="#1a1a2e"
-            strokeWidth="2"
-            style={{ cursor: 'pointer' }}
-            onMouseDown={(e) => handleOutputMouseDown(e, fork.id, outputIndex)}
-          />
-        ))}
-
-        {/* Node header background */}
-        <rect
-          x="8"
-          y="8"
-          width="134"
-          height="24"
-          rx="4"
-          ry="4"
-          fill="#2d2d44"
-        />
-
-        {/* Node title text */}
-        <text
-          x="75"
-          y="24"
-          textAnchor="middle"
-          fontSize="12"
-          fill="#e0e0e0"
-          fontWeight="500"
-        >
-          {fork.title || 'Untitled Choice'}
-        </text>
-
-
-
-        {/* Choices list */}
-        {fork.choices.slice(0, 2).map((choice, index) => (
-          <text
-            key={index}
-            x="75"
-            y={45 + (index * 12)}
-            textAnchor="middle"
-            fontSize="9"
-            fill="#a0a0a0"
-          >
-            {choice.label ? (choice.label.length > 15 ? choice.label.substring(0, 15) + '...' : choice.label) : `Choice ${index + 1}`}
-          </text>
-        ))}
-
-        {/* Timer indicator */}
-        <text
-          x="75"
-          y="70"
-          textAnchor="middle"
-          fontSize="10"
-          fill="#6b7280"
-        >
-          {fork.countdownSeconds}s timer
-        </text>
-      </g>
+        id={fork.id}
+        type="fork"
+        title={fork.title || 'Untitled Choice'}
+        choices={fork.choices}
+        countdownSeconds={fork.countdownSeconds}
+        position={fork.position}
+        selected={selectedNodeId === fork.id}
+        onSelect={onNodeSelect}
+        onUpdate={onUpdateNode}
+        onOutputMouseDown={(e) => handleOutputMouseDown(e, fork.id, 0)}
+        onInputMouseUp={(e) => handleInputMouseUp(e, fork.id)}
+      />
     );
   };
 
@@ -727,139 +451,56 @@ export const Canvas: React.FC<CanvasProps> = ({
           // Output point center (right side of source node)
           if (fromState.type === 'fork') {
             // Fork output connections are at different Y positions
-            startX = (fromState.position.x * canvasTransform.scale) + canvasTransform.x + 5000 + 158; // Node position + SVG offset + connection point offset (150 + 8)
-            startY = (fromState.position.y * canvasTransform.scale) + canvasTransform.y + 5000 + 25 + (connection.fromOutputIndex * 25); // Node position + SVG offset + connection Y
+            startX = (fromState.position.x * 1) + 0 + 5000 + 158; // Node position + SVG offset + connection point offset (150 + 8)
+            startY = (fromState.position.y * 1) + 0 + 5000 + 25 + (connection.fromOutputIndex * 25); // Node position + SVG offset + connection Y
           } else {
             // Regular scene/opening output connection at standard position
-            startX = (fromState.position.x * canvasTransform.scale) + canvasTransform.x + 5000 + 158; // Node position + SVG offset + connection point offset (150 + 8)
-            startY = (fromState.position.y * canvasTransform.scale) + canvasTransform.y + 5000 + 40; // Node position + SVG offset + connection Y
+            startX = (fromState.position.x * 1) + 0 + 5000 + 158; // Node position + SVG offset + connection point offset (150 + 8)
+            startY = (fromState.position.y * 1) + 0 + 5000 + 40; // Node position + SVG offset + connection Y
           }
 
           // Input point center (left side of target node) - always at (-8, 40) relative to node
-          endX = (toState.position.x * canvasTransform.scale) + canvasTransform.x + 5000 - 8; // Node position + SVG offset + connection point offset (-8 for left side)
-          endY = (toState.position.y * canvasTransform.scale) + canvasTransform.y + 5000 + 40; // Node position + SVG offset + connection Y
+          endX = (toState.position.x * 1) + 0 + 5000 - 8; // Node position + SVG offset + connection point offset (-8 for left side)
+          endY = (toState.position.y * 1) + 0 + 5000 + 40; // Node position + SVG offset + connection Y
 
           connectionElements.push(
-            <g
+            <Connection
               key={connection.id}
-              className="connection-line"
-              data-connection-id={connection.id}
-            >
-              <line
-                x1={startX}
-                y1={startY}
-                x2={endX}
-                y2={endY}
-                stroke="transparent"
-                strokeWidth="6"
-                style={{
-                pointerEvents: 'stroke',
-                cursor: 'pointer'
-              }}
-              onClick={(e) => {
-                e.stopPropagation();
-                e.preventDefault();
-
-                const connectionId = connection.id;
-
-                // Prevent deletion of newly created connections
-                if (lastConnectionCreated === connectionId) {
-                  return;
-                }
-
-                // Check if connection still exists before deleting
-                const connectionExists = connections.some(c => c.id === connectionId);
-                if (!connectionExists) {
-                  console.warn('Connection no longer exists:', connectionId);
-                  return;
-                }
-
-                onDeleteConnectionRef.current(connectionId);
-              }}
-              onMouseEnter={() => {
-                // Small delay to prevent flickering
-                setTimeout(() => setHoveredConnectionId(connection.id), 10);
-              }}
-              onMouseLeave={() => {
-                // Small delay to prevent flickering when moving between elements
-                setTimeout(() => setHoveredConnectionId(null), 50);
-              }}
+              id={connection.id}
+              fromNodeId={connection.fromNodeId}
+              fromOutputIndex={connection.fromOutputIndex}
+              toNodeId={connection.toNodeId}
+              onDelete={onDeleteConnection}
+              onHover={setHoveredConnectionId}
+              onDragEnd={setConnectionDragEnd}
+              onDragStart={setConnectionDragStart}
+              isDragging={isDraggingConnection}
+              connectionDragStart={connectionDragStart}
+              connectionDragEnd={connectionDragEnd}
+              lastConnectionCreated={lastConnectionCreated}
             />
-            {/* Visible line on top */}
-            <line
-              x1={startX}
-              y1={startY}
-              x2={endX}
-              y2={endY}
-              stroke={hoveredConnectionId === connection.id ? "#ef4444" : "#3b82f6"}
-              strokeWidth={hoveredConnectionId === connection.id ? "3" : "2"}
-              markerEnd="url(#arrowhead)"
-              style={{ pointerEvents: 'none' }}
-            />
-
-            {/* Connection label for fork nodes */}
-            {fromState.type === 'fork' && fromState.choices[connection.fromOutputIndex] && (
-              <text
-                x={(startX + endX) / 2}
-                y={(startY + endY) / 2 - 8}
-                textAnchor="middle"
-                fontSize="12"
-                fill="#ffffff"
-                fontWeight="500"
-                style={{ pointerEvents: 'none', userSelect: 'none' }}
-              >
-                {fromState.choices[connection.fromOutputIndex].label || `Choice ${connection.fromOutputIndex + 1}`}
-              </text>
-            )}
-
-            {/* Delete overlay when hovering */}
-            {hoveredConnectionId === connection.id && (
-              <circle
-                cx={(startX + endX) / 2}
-                cy={(startY + endY) / 2}
-                r="10"
-                fill="#ef4444"
-                stroke="#ffffff"
-                strokeWidth="2"
-                style={{ pointerEvents: 'none' }}
-              />
-            )}
-            {hoveredConnectionId === connection.id && (
-              <text
-                x={(startX + endX) / 2}
-                y={(startY + endY) / 2 + 3}
-                textAnchor="middle"
-                fill="#ffffff"
-                fontSize="12"
-                fontWeight="bold"
-                style={{ pointerEvents: 'none' }}
-              >
-                ×
-              </text>
-            )}
-          </g>
-        );
-      }
-    });
+          );
+        }
+      });
 
     // Render drag preview when creating new connection
     if (isDraggingConnection && connectionDragStart && connectionDragEnd) {
       connectionElements.push(
-        <g
+        <Connection
           key="drag-preview"
-          className="connection-line drag-preview"
-        >
-          <line
-            x1={connectionDragStart.position.x + 5000 + 158}
-            y1={connectionDragStart.position.y + 5000 + 40}
-            x2={connectionDragEnd.x + 5000}
-            y2={connectionDragEnd.y + 5000}
-            stroke="#fbbf24"
-            strokeWidth="2"
-            strokeDasharray="5,5"
-            markerEnd="url(#arrowhead)"
-          />
-        </g>
+          id="drag-preview"
+          fromNodeId={connectionDragStart.nodeId}
+          fromOutputIndex={connectionDragStart.outputIndex}
+          toNodeId={''} // No target node yet for preview
+          onDelete={onDeleteConnection}
+          onHover={setHoveredConnectionId}
+          onDragEnd={setConnectionDragEnd}
+          onDragStart={setConnectionDragStart}
+          isDragging={isDraggingConnection}
+          connectionDragStart={connectionDragStart}
+          connectionDragEnd={connectionDragEnd}
+          lastConnectionCreated={lastConnectionCreated}
+        />
       );
     }
 
@@ -983,10 +624,10 @@ export const Canvas: React.FC<CanvasProps> = ({
             
             {/* Viewport indicator */}
             <rect
-              x={(-canvasTransform.x - bounds.minX + padding) * finalScale}
-              y={(-canvasTransform.y - bounds.minY + padding) * finalScale}
-              width={(window.innerWidth / canvasTransform.scale) * finalScale}
-              height={(window.innerHeight / canvasTransform.scale) * finalScale}
+              x={(-0 - bounds.minX + padding) * finalScale}
+              y={(-0 - bounds.minY + padding) * finalScale}
+              width={((window.innerWidth - 300 - 350) / 1) * finalScale}
+              height={(window.innerHeight / 1) * finalScale}
               fill="none"
               stroke="#3b82f6"
               strokeWidth="2"
@@ -1012,8 +653,8 @@ export const Canvas: React.FC<CanvasProps> = ({
       <div 
         className="canvas-transform-container"
         style={{
-          transform: `translate(${canvasTransform.x}px, ${canvasTransform.y}px) scale(${canvasTransform.scale})`,
-          transformOrigin: '0 0',
+          // transform: `translate(${canvasTransform.x}px, ${canvasTransform.y}px) scale(${canvasTransform.scale})`,
+          // transformOrigin: '0 0',
           width: '100%',
           height: '100%',
           position: 'relative'
@@ -1080,7 +721,7 @@ export const Canvas: React.FC<CanvasProps> = ({
           <Move size={16} />
         </button>
         <div className="zoom-info">
-          {Math.round(canvasTransform.scale * 100)}%
+          {Math.round(1 * 100)}%
         </div>
       </div>
 
