@@ -8,6 +8,10 @@ MEANDER is a powerful visual editor for creating interactive theatrical choose-y
 
 - **Visual Node Editor**: Drag-and-drop interface for story creation
 - **Multiple Node Types**: Scenes, Forks, Opening, and Ending nodes
+- **Crisp Infinite Canvas**: High-performance pan/zoom, fit-to-view button, mini-map
+- **Dynamic Node Layout**: Nodes grow to fit titles & multi-line text; connection points auto-align
+- **Edge Management**: Drag to create, hover to delete, labels for fork choices
+- **Real-time Validation**: Ensures every fork output is connected & other structural rules
 - **Media Integration**: Upload images and videos for audience second screens
 - **Complete Package Export**: Export self-contained ZIP packages with all media
 - **Real-time Validation**: Built-in validation with helpful error messages
@@ -42,10 +46,10 @@ Your_Show_Name_2025-01-03T123456.zip
 - One output connection
 - Main story content with media support
 
-#### **Fork/Choice** (🔀)
+#### **Fork / Choice** (🔀)
 - One input connection
-- Two output connections (story branches)
-- Decision points for audience interaction
+- Any number of output connections (one per choice)
+- Audience text + timer; each choice rendered as separate branch
 
 #### **Ending Scene** (🟦)
 - One input connection
@@ -54,12 +58,12 @@ Your_Show_Name_2025-01-03T123456.zip
 
 ### 🚀 Getting Started
 
-1. **Create a New Show**: Start with Opening Scene
-2. **Add Content**: Upload media and write scene descriptions
-3. **Build Branches**: Use Forks to create choice points
-4. **Add Endings**: Create conclusion scenes
-5. **Validate**: Check for errors and missing connections
-6. **Export**: Download complete show package
+1. **Create a New Show**: An Opening Scene is added automatically
+2. **Add Content**: Type multi-line descriptions – nodes resize automatically
+3. **Branch**: Use Fork nodes, add choices (plus button) then drag outputs to target scenes
+4. **Add Endings**: Create Ending scenes (no outputs)
+5. **Validate & Fit View**: Click ✅ and Fit-view button (🔍) to see entire tree
+6. **Export**: Download ready-to-run show package
 
 ### 🎨 Media Support
 
