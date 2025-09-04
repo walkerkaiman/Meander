@@ -161,7 +161,7 @@ export const StateTree: React.FC<StateTreeProps> = ({
       <div className="tree-header">
         <h3>Story States</h3>
         <div className="tree-stats">
-          {totalScenes} Scenes • {forks.length} Choices
+          {totalScenes} Scenes • {forks.length} Forks
         </div>
       </div>
 
@@ -175,7 +175,7 @@ export const StateTree: React.FC<StateTreeProps> = ({
       </div>
 
       <div className="tree-section">
-        <h4>Choices</h4>
+        <h4>Forks</h4>
         <div className="tree-nodes">
           {forks.map(renderFork)}
         </div>
