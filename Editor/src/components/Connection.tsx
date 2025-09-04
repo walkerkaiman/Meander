@@ -45,7 +45,7 @@ export const Connection: React.FC<ConnectionProps> = ({ from, to, label, highlig
       {label && (
         <g transform={`translate(${midX}, ${midY})`} pointerEvents="none">
           <rect x={-40} y={-10} width={80} height={20} rx={4} ry={4} fill="rgba(17,24,39,0.8)" />
-          <text x={0} y={5} textAnchor="middle" dominantBaseline="middle" fill="#ffffff" fontSize={10}>{label}</text>
+          <text x={0} y={0} textAnchor="middle" dominantBaseline="middle" fill="#ffffff" fontSize={10}>{label}</text>
         </g>
       )}
       {hovered && onDelete && (
