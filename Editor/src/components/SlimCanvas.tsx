@@ -31,6 +31,26 @@ export const SlimCanvas: React.FC<CanvasProps> = ({
   const [hoverConnId, setHoverConnId] = useState<string | null>(null);
   const viewportRef = useRef<any>(null);
 
+  // helper for dynamic node height (same as Node component)
+  const cps = 22;
+  const countLines = (text: string) => {
+    const words = text.split(' ');
+    let lines = 1, cur = 0;
+    words.forEach(w=>{
+      if (cur + w.length + (cur?1:0) <= cps) cur += w.length + (cur?1:0);
+      else { lines++; cur = w.length; }
+    });
+    return lines;
+  };
+
+  const computeHeight = (state: State): number => {
+    const base = 60, lh = 14;
+    let lines = 1;
+    if (state.type==='scene' || state.type==='opening' || state.type==='ending') lines = state.description.split(/\r?\n/).reduce((s,l)=>s+countLines(l),0);
+    else if (state.type==='fork') lines = state.audienceText.split(/\r?\n/).reduce((s,l)=>s+countLines(l),0);
+    return base + lines*lh;
+  };
+
   // --- Node dragging ---
   const dragState = useRef<{ id: string; offset: Position } | null>(null);
 
@@ -99,7 +119,7 @@ export const SlimCanvas: React.FC<CanvasProps> = ({
     if (!node) return;
     const startPos: Position = node.type === 'fork'
       ? { x: node.position.x + 150 + 8, y: node.position.y + 25 + outputIdx * 25 }
-      : { x: node.position.x + 150 + 8, y: node.position.y + 40 };
+      : { x: node.position.x + 150 + 8, y: node.position.y + computeHeight(node)/2 };
     setIsDraggingConn(true);
     setConnStart({ nodeId, outputIndex: outputIdx, pos: startPos });
     setConnEnd(startPos);
@@ -165,14 +185,34 @@ export const SlimCanvas: React.FC<CanvasProps> = ({
   const ORIGIN = 5000; // shift to avoid negative coords being clipped
 
   const renderConnections = () => {
-    const getSceneHeight = (desc: string) => {
-      const lines = Math.max(1, Math.ceil(desc.split(/\r?\n/).reduce((c,l)=>c+l.length,0) / 30));
-      return Math.max(120, 60 + lines * 14);
+    const wrapCount = (text: string): number => {
+      const cps = 22;
+      const words = text.split(' ');
+      let lines = 1;
+      let curLen = 0;
+      words.forEach(w=>{
+        if (curLen + w.length + (curLen?1:0) <= cps) {
+          curLen += w.length + (curLen?1:0);
+        } else {
+          lines++;
+          curLen = w.length;
+        }
+      });
+      return lines;
+    };
+
+    const computeHeight = (state: State): number => {
+      const base = 60;
+      const lineH = 14;
+      let lines = 1;
+      if (state.type === 'scene') lines = state.description.split(/\r?\n/).reduce((sum,l)=>sum+wrapCount(l),0);
+      else if (state.type === 'opening' || state.type==='ending') lines = state.description.split(/\r?\n/).reduce((s,l)=>s+wrapCount(l),0);
+      else if (state.type==='fork') lines = state.audienceText.split(/\r?\n/).reduce((s,l)=>s+wrapCount(l),0);
+      return base + lines*lineH;
     };
 
     const nodeCenterY = (s: State) => {
-      if (s.type === 'scene') return s.position.y + getSceneHeight(s.description) / 2;
-      return s.position.y + 40; // default center for 80px nodes
+      return s.position.y + computeHeight(s)/2;
     };
 
     return connections.map(conn => {
@@ -253,12 +293,6 @@ export const SlimCanvas: React.FC<CanvasProps> = ({
               <polygon points="0 0, 10 3.5, 0 7" fill="#64748b" />
             </marker>
           </defs>
-          {renderConnections()}
-
-          {/* temp connection */}
-          {isDraggingConn && connStart && connEnd && (
-            <Connection from={connStart.pos} to={connEnd} highlighted />
-          )}
           {states.map(s => {
             return (
               <Node
@@ -271,6 +305,13 @@ export const SlimCanvas: React.FC<CanvasProps> = ({
               />
             );
           })}
+
+          {renderConnections()}
+
+          {/* temp connection */}
+          {isDraggingConn && connStart && connEnd && (
+            <Connection from={connStart.pos} to={connEnd} highlighted />
+          )}
           </g>
         </svg>
       </CanvasViewport>
