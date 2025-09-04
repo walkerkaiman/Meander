@@ -1,0 +1,14 @@
+{
+  "name": "@meander/editor-validator",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": { "build": "tsc -p ." },
+  "dependencies": {
+    "zod": "^3.22.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.2.2",
+    "@types/node": "^20.4.5"
+  }
+}

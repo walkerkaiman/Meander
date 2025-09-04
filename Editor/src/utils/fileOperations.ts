@@ -468,15 +468,6 @@ export class FileOperations {
           });
         }
 
-        // Performer text is optional for forks - can be empty if not needed
-        // if (!state.performerText.trim()) {
-        //   errors.push({
-        //     type: 'missing_required',
-        //     message: `Fork "${state.title || 'Untitled'}" is missing performer text`,
-        //     nodeId: state.id
-        //   });
-        // }
-
         // Validate each choice present
         state.choices.forEach((choice, index) => {
           if (!choice.label.trim()) {

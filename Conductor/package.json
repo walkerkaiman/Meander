@@ -1,0 +1,25 @@
+{
+  "name": "meander-monorepo",
+  "private": true,
+  "packageManager": "pnpm@8.6.10",
+  "version": "1.0.0",
+  "description": "MEANDER monorepo containing Editor and Conductor packages",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "pnpm -r run build",
+    "dev": "pnpm --recursive run dev",
+    "test": "pnpm -r run test",
+    "lint": "pnpm -r run lint",
+    "start": "pnpm --filter conductor-server start",
+    "conductor": "concurrently \"pnpm --filter conductor-server dev\" \"pnpm --filter conductor-client dev\" \"wait-on http://localhost:5173/index.html --verbose && start http://localhost:5173\"",
+    "conductor:server": "pnpm --filter conductor-server dev",
+    "conductor:client": "pnpm --filter conductor-client dev"
+  },
+  "devDependencies": {
+    "typescript": "^5.2.2",
+    "concurrently": "^8.2.0",
+    "wait-on": "^7.0.1"
+  }
+}

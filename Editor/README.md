@@ -78,5 +78,17 @@ Exported packages are designed to work seamlessly with the MEANDER Conductor sof
 
 ---
 
+## 🌐 Local-Network Deployment
+The full MEANDER platform (Editor ➜ Conductor ➜ Audience devices) is intended to run **entirely on a local network** during performances. When you launch the Conductor on a laptop or show computer it automatically binds its HTTP, WebSocket and UDP (OSC) ports to **0.0.0.0**, making them reachable by phones/tablets on the same Wi-Fi or wired network. No internet connection is required.
+
+Typical setup:
+1. Laptop running Conductor connected to dedicated show Wi-Fi router (or wired switch).
+2. Audience devices join the same network (QR code or SSID signage).
+3. Operator accesses Conductor UI via `http://<laptop-ip>:4000`.
+
+Make sure any local firewall allows inbound TCP **4000** and UDP **57121**.
+
+---
+
 **Built for theatrical innovation and interactive storytelling** 🎭✨
 
