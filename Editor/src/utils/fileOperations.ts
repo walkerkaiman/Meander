@@ -477,45 +477,36 @@ export class FileOperations {
         //   });
         // }
 
-        if (state.choices.length !== 2) {
-          errors.push({
-            type: 'invalid_fork',
-            message: `Fork "${state.title || 'Untitled'}" must have exactly 2 choices, found ${state.choices.length}`,
-            nodeId: state.id,
-            severity: 'error'
-          });
-        } else {
-          // Check both choices
-          state.choices.forEach((choice, index) => {
-            if (!choice.label.trim()) {
-              errors.push({
-                type: 'missing_required',
-                message: `Fork "${state.title || 'Untitled'}" choice ${index + 1} is missing a label`,
-                nodeId: state.id,
-                severity: 'error'
-              });
-            }
+        // Validate each choice present
+        state.choices.forEach((choice, index) => {
+          if (!choice.label.trim()) {
+            errors.push({
+              type: 'missing_required',
+              message: `Fork "${state.title || 'Untitled'}" choice ${index + 1} is missing a label`,
+              nodeId: state.id,
+              severity: 'error'
+            });
+          }
 
-            if (!choice.nextStateId) {
+          if (!choice.nextStateId) {
+            errors.push({
+              type: 'missing_connection',
+              message: `Fork "${state.title || 'Untitled'}" choice "${choice.label || `Choice ${index + 1}`}" is missing a target state`,
+              nodeId: state.id,
+              severity: 'error'
+            });
+          } else {
+            const nextStateExists = projectData.states.some(s => s.id === choice.nextStateId);
+            if (!nextStateExists) {
               errors.push({
-                type: 'missing_connection',
-                message: `Fork "${state.title || 'Untitled'}" choice "${choice.label || `Choice ${index + 1}`}" is missing a target state`,
+                type: 'invalid_connection',
+                message: `Fork "${state.title || 'Untitled'}" choice "${choice.label || `Choice ${index + 1}`}" points to non-existent state: ${choice.nextStateId}`,
                 nodeId: state.id,
                 severity: 'error'
               });
-            } else {
-              const nextStateExists = projectData.states.some(s => s.id === choice.nextStateId);
-              if (!nextStateExists) {
-                errors.push({
-                  type: 'invalid_connection',
-                  message: `Fork "${state.title || 'Untitled'}" choice "${choice.label || `Choice ${index + 1}`}" points to non-existent state: ${choice.nextStateId}`,
-                  nodeId: state.id,
-                  severity: 'error'
-                });
-              }
             }
-          });
-        }
+          }
+        });
       }
     });
 

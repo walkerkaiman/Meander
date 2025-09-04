@@ -9,13 +9,14 @@ interface ConnectionProps {
   onHover?: (hover: boolean) => void;
   onDelete?: () => void;
   hovered?: boolean;
+  interactive?: boolean;
 }
 
 /**
  * Render a cubic bezier connection between two points. The entire SVG scene may
  * later be transformed by the CanvasViewport, so we draw at raw coordinates.
  */
-export const Connection: React.FC<ConnectionProps> = ({ from, to, label, highlighted, onHover, onDelete, hovered }) => {
+export const Connection: React.FC<ConnectionProps> = ({ from, to, label, highlighted, onHover, onDelete, hovered, interactive=true }) => {
   // Simple horizontal bezier: control points at 1/3 and 2/3 of distance
   const dx = to.x - from.x;
   const dy = to.y - from.y;
@@ -32,6 +33,7 @@ export const Connection: React.FC<ConnectionProps> = ({ from, to, label, highlig
       className="connection-line"
       onMouseEnter={() => onHover?.(true)}
       onMouseLeave={() => onHover?.(false)}
+      pointerEvents={interactive ? undefined : 'none'}
     >
       <path
         d={path}

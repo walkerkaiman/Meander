@@ -207,7 +207,9 @@ export const SlimCanvas: React.FC<CanvasProps> = ({
       let lines = 1;
       if (state.type === 'scene') lines = state.description.split(/\r?\n/).reduce((sum,l)=>sum+wrapCount(l),0);
       else if (state.type === 'opening' || state.type==='ending') lines = state.description.split(/\r?\n/).reduce((s,l)=>s+wrapCount(l),0);
-      else if (state.type==='fork') lines = state.audienceText.split(/\r?\n/).reduce((s,l)=>s+wrapCount(l),0);
+      else if (state.type==='fork') {
+        lines = Math.max(state.choices.length + 1, state.audienceText.split(/\r?\n/).reduce((s,l)=>s+wrapCount(l),0));
+      }
       return base + lines*lineH;
     };
 
@@ -310,7 +312,7 @@ export const SlimCanvas: React.FC<CanvasProps> = ({
 
           {/* temp connection */}
           {isDraggingConn && connStart && connEnd && (
-            <Connection from={connStart.pos} to={connEnd} highlighted />
+            <Connection from={connStart.pos} to={connEnd} highlighted interactive={false} />
           )}
           </g>
         </svg>

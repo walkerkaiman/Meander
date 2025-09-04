@@ -31,6 +31,20 @@ export const EditorLayout: React.FC<EditorLayoutProps> = ({
   // Use ref to track last update to prevent expensive comparisons
   const lastUpdateRef = useRef<string>('');
   const handleCreateConnection = useCallback((fromNodeId: string, fromOutputIndex: number, toNodeId: string) => {
+    // Remove any existing connection originating from same output
+    let updatedConnections = projectData.connections.filter(conn => !(conn.fromNodeId === fromNodeId && conn.fromOutputIndex === fromOutputIndex));
+
+    // Remove reference from states connections arrays
+    let updatedStates = projectData.states.map(s => {
+      if (s.connections && s.connections.length) {
+        return { ...s, connections: s.connections.filter(cid => {
+          const conn = projectData.connections.find(c=>c.id===cid);
+          return !(conn && conn.fromNodeId===fromNodeId && conn.fromOutputIndex===fromOutputIndex);
+        }) } as any;
+      }
+      return s;
+    });
+
     const connectionId = FileOperations.generateUniqueId();
     const newConnection = {
       id: connectionId,
@@ -39,9 +53,7 @@ export const EditorLayout: React.FC<EditorLayoutProps> = ({
       toNodeId
     };
 
-    // Check if the fromNode is a fork and update its choices accordingly
     const fromNode = projectData.states.find(state => state.id === fromNodeId);
-    let updatedStates = [...projectData.states];
 
     if (fromNode && fromNode.type === 'fork' && fromOutputIndex < fromNode.choices.length) {
       // Update the fork's choice at the specified output index
@@ -68,7 +80,7 @@ export const EditorLayout: React.FC<EditorLayoutProps> = ({
     const updatedProject = {
       ...projectData,
       states: updatedStates,
-      connections: [...projectData.connections, newConnection]
+      connections: [...updatedConnections, newConnection]
     };
 
     onUpdateProject(updatedProject);

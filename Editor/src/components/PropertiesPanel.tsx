@@ -213,28 +213,6 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
           </button>
         </div>
       </div>
-
-      <div className="property-group">
-        <label>Position</label>
-        <div className="position-inputs">
-          <input
-            type="number"
-            value={fork.position.x}
-            onChange={(e) => handleUpdate({
-              position: { ...fork.position, x: parseInt(e.target.value) || 0 }
-            })}
-            placeholder="X"
-          />
-          <input
-            type="number"
-            value={fork.position.y}
-            onChange={(e) => handleUpdate({
-              position: { ...fork.position, y: parseInt(e.target.value) || 0 }
-            })}
-            placeholder="Y"
-          />
-        </div>
-      </div>
     </div>
   );
 

@@ -234,7 +234,8 @@ export const Node: React.FC<NodeProps> = ({
   // ----- Fork ----- audienceText lines -----
   const renderForkNode = (fork: Fork) => {
     const descLines = buildLinesDesc(fork.audienceText);
-    const height = calcHeightFromLines(descLines.length);
+    const choiceSpace = fork.choices.length * 25 + 25;
+    const height = Math.max(calcHeightFromLines(descLines.length), choiceSpace + 20);
 
     return (
       <g>
