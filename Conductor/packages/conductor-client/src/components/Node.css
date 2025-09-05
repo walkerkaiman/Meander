@@ -1,0 +1,136 @@
+.canvas-node {
+  position: relative;
+  width: 150px;
+  min-height: 80px;
+  background: #1a1a2e;
+  border: 2px solid #2d2d44;
+  border-radius: 10px;
+  padding: 15px;
+  cursor: default;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  transition: all 0.2s ease;
+  user-select: none;
+  transform-origin: center center;
+}
+
+.canvas-node:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.canvas-node.current {
+  border: 3px dashed #ffffff;
+  box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.2);
+  animation: borderGlow 2s ease-in-out infinite;
+}
+
+/* SVG Node Selection Styling */
+.canvas-node.current rect {
+  stroke-dasharray: 5,5;
+  animation: dashedLine 1s linear infinite;
+}
+
+/* Connection point circles should not have dashed lines */
+.canvas-node.current circle {
+  stroke-dasharray: none;
+  animation: none;
+}
+
+@keyframes borderGlow {
+  0%, 100% {
+    box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 0 12px rgba(255, 255, 255, 0.4), 0 0 0 18px rgba(255, 255, 255, 0.1);
+  }
+}
+
+@keyframes dashedLine {
+  0% { stroke-dashoffset: 0; }
+  100% { stroke-dashoffset: 10; }
+}
+
+.scene-node {
+  border-color: #10b981;
+}
+
+.fork-node {
+  border-color: #facc15;
+}
+
+.opening-node {
+  border-color: #a855f7;
+}
+
+.ending-node {
+  border-color: #a855f7;
+}
+
+.node-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-weight: 500;
+  color: #e0e0e0;
+}
+
+.node-title {
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.node-content {
+  margin-bottom: 10px;
+}
+
+.node-description {
+  font-size: 0.8rem;
+  color: #a0a0a0;
+  line-height: 1.4;
+  margin-bottom: 8px;
+}
+
+.node-media {
+  font-size: 0.75rem;
+  color: #10b981;
+  background: #ecfdf5;
+  padding: 4px 8px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.node-connections {
+  font-size: 0.75rem;
+  color: #a0a0a0;
+  text-align: center;
+  padding: 4px 8px;
+  background: #2d2d44;
+  border-radius: 4px;
+}
+
+.node-choices {
+  margin-bottom: 8px;
+}
+
+.choice-item {
+  font-size: 0.8rem;
+  color: #e0e0e0;
+  padding: 4px 8px;
+  background: #2d2d44;
+  border-radius: 4px;
+  margin-bottom: 4px;
+  border-left: 3px solid #f59e0b;
+}
+
+.node-timer {
+  font-size: 0.75rem;
+  color: #a0a0a0;
+  text-align: center;
+  padding: 4px 8px;
+  background: #2d2d44;
+  border-radius: 4px;
+}
+
+

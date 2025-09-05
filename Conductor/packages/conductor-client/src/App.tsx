@@ -1,37 +1,53 @@
-import { AppShell, Navbar, Header, Button, Group, ScrollArea } from "@mantine/core";
-import React from "react";
-import { ReactFlowProvider } from "react-flow-renderer";
-import { useConductorSocket } from "./hooks/useConductorSocket";
+import React, { useEffect, useState } from 'react';
+import { useShowStore } from './store/useShowStore';
+import Canvas from './components/Canvas';
+import ProgressSidebar from './components/ProgressSidebar';
+import ControlBar from './components/ControlBar';
+import MenuBar from './components/MenuBar';
+import './App.css';
 
-function Canvas() {
-  return <div style={{ flex: 1, background: "#20232a" }}>Canvas placeholder</div>;
-}
+function App() {
+  const { showData, setShow } = useShowStore();
+  const [isLoading, setIsLoading] = useState(true);
 
-export default function App() {
+  useEffect(() => {
+    // Simulate loading show data on mount
+    const loadShowData = async () => {
+      setIsLoading(true);
+      try {
+        // This is a placeholder until we implement actual show loading
+        // For now, we'll use dummy data or an empty show
+        const dummyShowData = {
+          states: [],
+          connections: []
+        };
+        setShow(dummyShowData);
+      } catch (error) {
+        console.error('Error loading show data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadShowData();
+  }, [setShow]);
+
+  if (isLoading) {
+    return <div className="loading">Loading show data...</div>;
+  }
+
   return (
-    <AppShell
-      padding="md"
-      navbar={
-        <Navbar width={{ base: 300 }} p="xs">
-          <Navbar.Section grow component={ScrollArea} mx="-xs" px="xs">
-            Progress sidebar
-          </Navbar.Section>
-        </Navbar>
-      }
-      header={
-        <Header height={60} p="xs">
-          <Group position="apart" sx={{ height: "100%" }}>
-            <div>Meander Conductor</div>
-            <Button variant="light">Load Show</Button>
-          </Group>
-        </Header>
-      }
-      styles={(theme) => ({ main: { backgroundColor: theme.colors.dark[7] } })}
-    >
-      <ReactFlowProvider>
-        {useConductorSocket()}
+    <div className="app-container">
+      <MenuBar />
+      <div className="main-content">
+        <ProgressSidebar />
         <Canvas />
-      </ReactFlowProvider>
-    </AppShell>
+      </div>
+      <ControlBar />
+      {!showData || showData.states.length === 0 ? (
+        <div className="no-data-message">No show data loaded. Please upload a show.</div>
+      ) : null}
+    </div>
   );
 }
+
+export default App;

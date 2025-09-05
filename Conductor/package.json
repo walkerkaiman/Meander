@@ -18,8 +18,11 @@
     "conductor:client": "pnpm --filter conductor-client dev"
   },
   "devDependencies": {
-    "typescript": "^5.2.2",
     "concurrently": "^8.2.0",
+    "typescript": "^5.2.2",
     "wait-on": "^7.0.1"
+  },
+  "dependencies": {
+    "react-flow-renderer": "^10.3.17"
   }
 }
