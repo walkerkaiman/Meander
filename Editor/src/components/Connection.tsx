@@ -19,7 +19,6 @@ interface ConnectionProps {
 export const Connection: React.FC<ConnectionProps> = ({ from, to, label, highlighted, onHover, onDelete, hovered, interactive=true }) => {
   // Simple horizontal bezier: control points at 1/3 and 2/3 of distance
   const dx = to.x - from.x;
-  const dy = to.y - from.y;
   const control1: Position = { x: from.x + dx * 0.33, y: from.y };
   const control2: Position = { x: from.x + dx * 0.66, y: to.y };
 

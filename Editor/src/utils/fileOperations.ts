@@ -1,6 +1,13 @@
 import { ProjectData, State, Connection, Show, ShowMetadata, ValidationError, AudienceMedia } from '../types';
 
+
 export class FileOperations {
+  // Test method to see if static methods work at all
+  static testMethod() {
+    console.log('testMethod called successfully');
+    return 'test';
+  }
+
   static createNewShow(showName: string, author: string): ProjectData {
     const now = new Date().toISOString();
     const initialStateId = `scene_${Date.now()}`;
@@ -181,49 +188,53 @@ export class FileOperations {
       const mediaFiles: { [key: string]: File } = {};
       const missingFiles: string[] = [];
 
-      // Create show configuration without File objects
+      // Create show configuration with media assets
       const exportStates = projectData.states.map(state => ({
         ...state,
         audienceMedia: (state.audienceMedia || []).map(media => ({
           type: media.type,
-          file: `media/${media.file}`,
+          file: `assets/${media.file}`,
           size: media.size
         }))
       }));
 
+      // Single comprehensive JSON export
       const exportData = {
+        // Project metadata
         show: {
-          ...projectData.show,
           showName: projectData.show.showName,
           version: '1.0',
           created: projectData.show.created,
           lastEdited: projectData.show.lastEdited,
-          initialStateId: projectData.show.initialStateId,
-          statesFile: 'config/states.json',
-          outputsFile: 'config/outputs.json',
-          metadataFile: 'config/metadata.json'
+          initialStateId: projectData.show.initialStateId
         },
+
+        // All project data in one file
         states: exportStates,
+        connections: projectData.connections,
         outputs: projectData.outputs,
         metadata: projectData.metadata,
+
+        // Export information
         exportedAt: new Date().toISOString(),
         version: '1.0',
-        packageFormat: 'meander-show-v1'
+        packageFormat: 'meander-show-v2',
+
+        // Asset information
+        assets: {
+          folder: 'assets',
+          totalFiles: 0,
+          missingFiles: [] as string[]
+        }
       };
 
-      // Add configuration files
-      zip.file('config/states.json', JSON.stringify({ states: exportStates }, null, 2));
-      zip.file('config/outputs.json', JSON.stringify({ outputs: projectData.outputs }, null, 2));
-      zip.file('config/metadata.json', JSON.stringify(projectData.metadata, null, 2));
-      zip.file('show.json', JSON.stringify(exportData, null, 2));
-
-      // Collect and add media files
+      // Collect and add media files to assets folder
       let mediaCount = 0;
       for (const state of projectData.states) {
         const audienceMedia = state.audienceMedia || [];
         for (const media of audienceMedia) {
           if (media.originalFile && media.originalFile instanceof File) {
-            const mediaPath = `media/${media.file}`;
+            const mediaPath = `assets/${media.file}`;
             if (!mediaFiles[mediaPath]) {
               mediaFiles[mediaPath] = media.originalFile;
               zip.file(mediaPath, media.originalFile);
@@ -238,6 +249,13 @@ export class FileOperations {
         }
       }
 
+      // Update asset information in export data
+      exportData.assets.totalFiles = mediaCount;
+      exportData.assets.missingFiles = missingFiles;
+
+      // Add the single comprehensive JSON file
+      zip.file('show.json', JSON.stringify(exportData, null, 2));
+
       // Generate and download the ZIP file
       const zipBlob = await zip.generateAsync({ type: 'blob' });
 
@@ -251,17 +269,13 @@ export class FileOperations {
 
       console.log(`🎭 Export successful: ${packageName}.zip`);
       console.log('📦 Package contents:');
-      console.log('  📁 config/');
-      console.log('    📄 states.json');
-      console.log('    📄 outputs.json');
-      console.log('    📄 metadata.json');
-      console.log('  📁 media/');
+      console.log('  📄 show.json (complete project data)');
+      console.log('  📁 assets/');
       console.log(`    📄 ${mediaCount} media files included`);
       if (missingFiles.length > 0) {
         console.log(`    ⚠️  ${missingFiles.length} media files missing (not included)`);
         console.log('    Missing files:', missingFiles.join(', '));
       }
-      console.log('  📄 show.json (main configuration)');
       console.log('');
 
       if (missingFiles.length > 0) {
@@ -557,4 +571,8 @@ export class FileOperations {
   static generateUniqueId(): string {
     return `node_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
+
 }
+
+
+

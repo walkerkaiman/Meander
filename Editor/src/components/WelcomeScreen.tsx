@@ -17,10 +17,11 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   const handleCreateShow = (e: React.FormEvent) => {
     e.preventDefault();
     if (!showName.trim() || !author.trim()) return;
-    
+
     setIsCreating(true);
     onCreateNewShow(showName.trim(), author.trim());
   };
+
 
   return (
     <div className="welcome-screen">
@@ -37,7 +38,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           <div className="action-card">
             <h3>Create New Show</h3>
             <p>Start building a new interactive theatrical experience</p>
-            
+
             <form onSubmit={handleCreateShow} className="create-form">
               <div className="form-group">
                 <label htmlFor="showName">Show Name</label>
@@ -50,7 +51,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                   required
                 />
               </div>
-              
+
               <div className="form-group">
                 <label htmlFor="author">Author</label>
                 <input
@@ -62,9 +63,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                   required
                 />
               </div>
-              
-              <button 
-                type="submit" 
+
+              <button
+                type="submit"
                 className="btn btn-primary"
                 disabled={isCreating || !showName.trim() || !author.trim()}
               >
@@ -77,8 +78,8 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           <div className="action-card">
             <h3>Load Existing Show</h3>
             <p>Open a previously created show to continue editing</p>
-            
-            <button 
+
+            <button
               onClick={onLoadShow}
               className="btn btn-secondary"
             >
@@ -86,28 +87,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
               Load Show
             </button>
           </div>
+
         </div>
 
-        <div className="welcome-info">
-          <h4>What is MEANDER?</h4>
-          <p>
-            MEANDER is a platform for creating interactive theatrical experiences where 
-            audience members vote to shape the story. Create branching narratives with 
-            scenes, choices, and environmental outputs that respond to audience decisions.
-          </p>
-          
-          <div className="features">
-            <div className="feature">
-              <strong>Scenes:</strong> Define story moments with performer cues and audience media
-            </div>
-            <div className="feature">
-              <strong>Forks:</strong> Create binary choices that branch the narrative
-            </div>
-            <div className="feature">
-              <strong>Outputs:</strong> Control lighting, audio, and video based on story state
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );

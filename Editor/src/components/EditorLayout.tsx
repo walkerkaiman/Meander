@@ -1,11 +1,10 @@
 import React, { useState, useCallback, useRef } from 'react';
-import { ProjectData, StateUpdate, ValidationError } from '../types';
+import { ProjectData, StateUpdate } from '../types';
 import { StateTree } from './StateTree';
 import SlimCanvas from './SlimCanvas';
 const Canvas = SlimCanvas;
 import { PropertiesPanel } from './PropertiesPanel';
 import { Toolbar } from './Toolbar';
-import { ValidationPanel } from './ValidationPanel';
 
 import { FileOperations } from '../utils/fileOperations';
 
@@ -132,10 +131,6 @@ export const EditorLayout: React.FC<EditorLayoutProps> = ({
 
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
-  const [showValidationPanel, setShowValidationPanel] = useState(false);
-  const [showSuccessNotification, setShowSuccessNotification] = useState(false);
-  const [fadeOutSuccess, setFadeOutSuccess] = useState(false);
 
   const handleNodeSelect = (nodeId: string | null) => {
     setSelectedNodeId(nodeId);
@@ -316,34 +311,7 @@ export const EditorLayout: React.FC<EditorLayoutProps> = ({
     }
   };
 
-  const handleValidateProject = () => {
-    const errors = FileOperations.validateProject(projectData);
-    setValidationErrors(errors);
 
-    if (errors.length === 0) {
-      // Reset fade state and show success notification
-      setFadeOutSuccess(false);
-      setShowSuccessNotification(true);
-
-      // Start fade out after 2 seconds
-      setTimeout(() => {
-        setFadeOutSuccess(true);
-      }, 2000);
-
-      // Hide completely after fade animation (2.3 seconds total)
-      setTimeout(() => {
-        setShowSuccessNotification(false);
-        setFadeOutSuccess(false);
-      }, 2300);
-    } else {
-      // Show error panel
-      setShowValidationPanel(true);
-    }
-  };
-
-  const handleCloseValidationPanel = () => {
-    setShowValidationPanel(false);
-  };
 
 
 
@@ -360,7 +328,6 @@ export const EditorLayout: React.FC<EditorLayoutProps> = ({
         onLoadShow={onLoadShow}
         onSave={onSaveShow}
         onExport={onExportShow}
-        onValidate={handleValidateProject}
         onAddScene={handleAddScene}
         onAddFork={handleAddFork}
         onAddOpening={handleAddOpening}
@@ -398,21 +365,6 @@ export const EditorLayout: React.FC<EditorLayoutProps> = ({
         </div>
       </div>
 
-      {showSuccessNotification && (
-        <div className={fadeOutSuccess ? 'fade-out' : ''}>
-          <ValidationPanel
-            errors={[]}
-            onClose={() => {}}
-          />
-        </div>
-      )}
-
-      {showValidationPanel && (
-        <ValidationPanel
-          errors={validationErrors}
-          onClose={handleCloseValidationPanel}
-        />
-      )}
     </div>
   );
 };

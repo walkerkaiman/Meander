@@ -1,9 +1,8 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { State, Scene, OpeningScene, EndingScene, Fork, Position, Connection, StateUpdate } from '../types';
+import { State, Scene, OpeningScene, EndingScene, Fork, Position, StateUpdate, Connection } from '../types';
 import { ZoomIn, ZoomOut, Move, Maximize2 } from 'lucide-react';
-import CanvasViewport from './CanvasViewport';
 import Node from './Node';
-import Connection from './Connection';
+import { Connection as ConnectionComponent } from './Connection';
 
 interface CanvasProps {
   states: State[];
@@ -36,8 +35,6 @@ export const Canvas: React.FC<CanvasProps> = ({
     position: Position;
   } | null>(null);
   const [connectionDragEnd, setConnectionDragEnd] = useState<Position | null>(null);
-  const [hoveredConnectionId, setHoveredConnectionId] = useState<string | null>(null);
-  const [lastConnectionCreated, setLastConnectionCreated] = useState<string | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
 
   // Use ref to avoid stale closure issues
@@ -89,16 +86,6 @@ export const Canvas: React.FC<CanvasProps> = ({
       }
     } else if (isPanning) {
       // Handle panning - optimized for performance
-      const deltaX = e.clientX - lastPanPosition.x;
-      const deltaY = e.clientY - lastPanPosition.y;
-
-      // Direct update for immediate response
-      // setCanvasTransform(prev => ({
-      //   ...prev,
-      //   x: prev.x + deltaX,
-      //   y: prev.y + deltaY
-      // }));
-
       setLastPanPosition({ x: e.clientX, y: e.clientY });
     } else if (draggedNodeId) {
       // Handle node dragging - optimized for performance
@@ -119,18 +106,9 @@ export const Canvas: React.FC<CanvasProps> = ({
     }
   }, [isDraggingConnection, isPanning, lastPanPosition, draggedNodeId, dragOffset, onUpdateNode]);
 
-  const handleMouseUp = useCallback((e: React.MouseEvent) => {
+  const handleMouseUp = useCallback((_e: React.MouseEvent) => {
     // Only reset hover if we're clicking on the actual canvas background
-    const target = e.target as HTMLElement;
-    const isClickingOnCanvasBackground = target.classList.contains('canvas') ||
-                                        target.classList.contains('canvas-transform-container') ||
-                                        (target.tagName === 'svg' && target.classList.contains('canvas-background')) ||
-                                        target.tagName === 'rect';
-
-    // Don't reset hover if clicking on connections or other elements
-    if (isClickingOnCanvasBackground) {
-      setHoveredConnectionId(null);
-    }
+    // Connection hover state is no longer tracked
 
     setDraggedNodeId(null);
     setDragOffset({ x: 0, y: 0 });
@@ -150,17 +128,9 @@ export const Canvas: React.FC<CanvasProps> = ({
     
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
-    
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-    
+
     const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
-    const newScale = Math.max(0.7, Math.min(1.5, 1 * zoomFactor));
-    
-    // Calculate new transform to zoom towards mouse position
-    const scaleDiff = newScale / 1;
-    const newX = mouseX - (mouseX - 0) * scaleDiff;
-    const newY = mouseY - (mouseY - 0) * scaleDiff;
+    Math.max(0.7, Math.min(1.5, 1 * zoomFactor)); // Currently disabled
     
     // setCanvasTransform({
     //   scale: newScale,
@@ -213,15 +183,7 @@ export const Canvas: React.FC<CanvasProps> = ({
 
   const resetView = useCallback(() => {
     // Reset to center of available canvas space (accounting for sidebars)
-    const leftSidebarWidth = 300;
-    const rightSidebarWidth = 350;
-    const availableCanvasWidth = window.innerWidth - leftSidebarWidth - rightSidebarWidth;
-    
-    // Center the view in the available space
-    const x = leftSidebarWidth + (availableCanvasWidth / 2);
-    const y = 0;
-    
-    // setCanvasTransform({ scale: 1, x, y });
+    // Currently disabled - canvas transform is not implemented
   }, []);
 
   const fitAllNodesInView = useCallback(() => {
@@ -268,18 +230,10 @@ export const Canvas: React.FC<CanvasProps> = ({
     // Calculate scale to fit content in available canvas space
     const scaleX = availableCanvasWidth / contentWidth;
     const scaleY = availableCanvasHeight / contentHeight;
-    const scale = Math.min(scaleX, scaleY, 1); // Don't scale up beyond 100%
-
-    // Calculate center position
-    const centerX = (bounds.minX + bounds.maxX) / 2;
-    const centerY = (bounds.minY + bounds.maxY) / 2;
+    Math.min(scaleX, scaleY, 1); // Don't scale up beyond 100% - currently disabled
 
     // Calculate transform to center content in available space
-    // Account for left sidebar offset
-    const x = (availableCanvasWidth / 2) - (centerX * scale) + leftSidebarWidth;
-    const y = (availableCanvasHeight / 2) - (centerY * scale);
-
-    // setCanvasTransform({ scale, x, y });
+    // Currently disabled - canvas transform is not implemented
   }, [states]);
 
   // Auto-fit all nodes in view when states change (new nodes added/removed)
@@ -324,18 +278,12 @@ export const Canvas: React.FC<CanvasProps> = ({
       e.stopPropagation();
 
       // Create the connection
-      const newConnectionId = onCreateConnection(connectionDragStart.nodeId, connectionDragStart.outputIndex, nodeId);
-      if (newConnectionId) {
-        setLastConnectionCreated(newConnectionId);
-      }
+      onCreateConnection(connectionDragStart.nodeId, connectionDragStart.outputIndex, nodeId);
 
       // Reset drag state
       setIsDraggingConnection(false);
       setConnectionDragStart(null);
       setConnectionDragEnd(null);
-
-      // Clear the last created connection after a short delay
-      setTimeout(() => setLastConnectionCreated(null), 500);
     }
   }, [isDraggingConnection, connectionDragStart, onCreateConnection]);
 
@@ -343,96 +291,45 @@ export const Canvas: React.FC<CanvasProps> = ({
 
 
 
-  const renderScene = (scene: Scene) => {
-    // Apply canvas transform manually to maintain crisp vector rendering
-    const nodeX = (scene.position.x * 1) + 0 + 5000;
-    const nodeY = (scene.position.y * 1) + 0 + 5000;
+  const renderScene = (scene: Scene) => (
+    <Node
+      state={scene}
+      selected={selectedNodeId === scene.id}
+      onMouseDown={handleNodeMouseDown}
+      onOutputMouseDown={handleOutputMouseDown}
+      onInputMouseUp={handleInputMouseUp}
+    />
+  );
 
-    return (
-      <Node
-        key={scene.id}
-        id={scene.id}
-        type="scene"
-        title={scene.title || 'Untitled Scene'}
-        description={scene.description}
-        audienceMedia={scene.audienceMedia}
-        position={scene.position}
-        selected={selectedNodeId === scene.id}
-        onSelect={onNodeSelect}
-        onUpdate={onUpdateNode}
-        onOutputMouseDown={(e) => handleOutputMouseDown(e, scene.id, 0)}
-        onInputMouseUp={(e) => handleInputMouseUp(e, scene.id)}
-      />
-    );
-  };
+  const renderOpeningScene = (opening: OpeningScene) => (
+    <Node
+      state={opening}
+      selected={selectedNodeId === opening.id}
+      onMouseDown={handleNodeMouseDown}
+      onOutputMouseDown={handleOutputMouseDown}
+      onInputMouseUp={handleInputMouseUp}
+    />
+  );
 
-  const renderOpeningScene = (opening: OpeningScene) => {
-    // Apply canvas transform manually to maintain crisp vector rendering
-    const nodeX = (opening.position.x * 1) + 0 + 5000;
-    const nodeY = (opening.position.y * 1) + 0 + 5000;
+  const renderEndingScene = (ending: EndingScene) => (
+    <Node
+      state={ending}
+      selected={selectedNodeId === ending.id}
+      onMouseDown={handleNodeMouseDown}
+      onOutputMouseDown={handleOutputMouseDown}
+      onInputMouseUp={handleInputMouseUp}
+    />
+  );
 
-    return (
-      <Node
-        key={opening.id}
-        id={opening.id}
-        type="opening"
-        title={opening.title || 'Opening Scene'}
-        description={opening.description}
-        audienceMedia={opening.audienceMedia}
-        position={opening.position}
-        selected={selectedNodeId === opening.id}
-        onSelect={onNodeSelect}
-        onUpdate={onUpdateNode}
-        onOutputMouseDown={(e) => handleOutputMouseDown(e, opening.id, 0)}
-        onInputMouseUp={(e) => handleInputMouseUp(e, opening.id)}
-      />
-    );
-  };
-
-  const renderEndingScene = (ending: EndingScene) => {
-    // Apply canvas transform manually to maintain crisp vector rendering
-    const nodeX = (ending.position.x * 1) + 0 + 5000;
-    const nodeY = (ending.position.y * 1) + 0 + 5000;
-
-    return (
-      <Node
-        key={ending.id}
-        id={ending.id}
-        type="ending"
-        title={ending.title || 'Ending Scene'}
-        description={ending.description}
-        audienceMedia={ending.audienceMedia}
-        position={ending.position}
-        selected={selectedNodeId === ending.id}
-        onSelect={onNodeSelect}
-        onUpdate={onUpdateNode}
-        onInputMouseUp={(e) => handleInputMouseUp(e, ending.id)}
-      />
-    );
-  };
-
-  const renderFork = (fork: Fork) => {
-    // Apply canvas transform manually to maintain crisp vector rendering
-    const nodeX = (fork.position.x * 1) + 0 + 5000;
-    const nodeY = (fork.position.y * 1) + 0 + 5000;
-
-    return (
-      <Node
-        key={fork.id}
-        id={fork.id}
-        type="fork"
-        title={fork.title || 'Untitled Choice'}
-        choices={fork.choices}
-        countdownSeconds={fork.countdownSeconds}
-        position={fork.position}
-        selected={selectedNodeId === fork.id}
-        onSelect={onNodeSelect}
-        onUpdate={onUpdateNode}
-        onOutputMouseDown={(e) => handleOutputMouseDown(e, fork.id, 0)}
-        onInputMouseUp={(e) => handleInputMouseUp(e, fork.id)}
-      />
-    );
-  };
+  const renderFork = (fork: Fork) => (
+    <Node
+      state={fork}
+      selected={selectedNodeId === fork.id}
+      onMouseDown={handleNodeMouseDown}
+      onOutputMouseDown={handleOutputMouseDown}
+      onInputMouseUp={handleInputMouseUp}
+    />
+  );
 
     const renderConnections = () => {
       const connectionElements: JSX.Element[] = [];
@@ -444,8 +341,6 @@ export const Canvas: React.FC<CanvasProps> = ({
 
         if (fromState && toState) {
           // Calculate connection points to the CENTER of the connection circles
-          // Since nodes are now SVG elements positioned at (nodeX, nodeY), we calculate relative to that
-
           let startX, startY, endX, endY;
 
           // Output point center (right side of source node)
@@ -464,20 +359,12 @@ export const Canvas: React.FC<CanvasProps> = ({
           endY = (toState.position.y * 1) + 0 + 5000 + 40; // Node position + SVG offset + connection Y
 
           connectionElements.push(
-            <Connection
+            <ConnectionComponent
               key={connection.id}
-              id={connection.id}
-              fromNodeId={connection.fromNodeId}
-              fromOutputIndex={connection.fromOutputIndex}
-              toNodeId={connection.toNodeId}
-              onDelete={onDeleteConnection}
-              onHover={setHoveredConnectionId}
-              onDragEnd={setConnectionDragEnd}
-              onDragStart={setConnectionDragStart}
-              isDragging={isDraggingConnection}
-              connectionDragStart={connectionDragStart}
-              connectionDragEnd={connectionDragEnd}
-              lastConnectionCreated={lastConnectionCreated}
+              from={{ x: startX, y: startY }}
+              to={{ x: endX, y: endY }}
+              label={fromState.type === 'fork' ? fromState.choices[connection.fromOutputIndex]?.label : undefined}
+              onDelete={() => onDeleteConnection(connection.id)}
             />
           );
         }
@@ -486,20 +373,12 @@ export const Canvas: React.FC<CanvasProps> = ({
     // Render drag preview when creating new connection
     if (isDraggingConnection && connectionDragStart && connectionDragEnd) {
       connectionElements.push(
-        <Connection
+        <ConnectionComponent
           key="drag-preview"
-          id="drag-preview"
-          fromNodeId={connectionDragStart.nodeId}
-          fromOutputIndex={connectionDragStart.outputIndex}
-          toNodeId={''} // No target node yet for preview
-          onDelete={onDeleteConnection}
-          onHover={setHoveredConnectionId}
-          onDragEnd={setConnectionDragEnd}
-          onDragStart={setConnectionDragStart}
-          isDragging={isDraggingConnection}
-          connectionDragStart={connectionDragStart}
-          connectionDragEnd={connectionDragEnd}
-          lastConnectionCreated={lastConnectionCreated}
+          from={{ x: connectionDragStart.position.x, y: connectionDragStart.position.y }}
+          to={connectionDragEnd}
+          highlighted={true}
+          interactive={false}
         />
       );
     }

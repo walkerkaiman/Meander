@@ -54,8 +54,6 @@ export const Node: React.FC<NodeProps> = ({
   // ----- Scene -----
   const buildLinesScene = (desc: string) => desc.split(/\r?\n/).flatMap(wrapLinesGeneric);
 
-  const calcSceneHeight = (desc: string) => calcHeightFromLines(buildLinesScene(desc).length);
-  const forkHeight = 80;
 
   // Base translation (no scaling here!)
   const { x, y } = state.position;
@@ -79,73 +77,7 @@ export const Node: React.FC<NodeProps> = ({
     </>
   );
 
-  const renderBodyText = (text: string) => (
-    <text
-      x={75}
-      y={55}
-      textAnchor="middle"
-      dominantBaseline="middle"
-      fill="#cbd5e1"
-      fontSize={10}
-      style={{ pointerEvents: 'none', whiteSpace: 'pre-wrap' }}
-    >
-      {text.length > 30 ? text.slice(0, 27) + '…' : text}
-    </text>
-  );
 
-  // Render IO depending on node type rules
-  const renderIO = (type: State['type'], hasMultipleOutputs = false) => {
-    const showInput = type !== 'opening';
-    const showOutput = type !== 'ending';
-
-    return (
-      <>
-        {/* Input */}
-        {showInput && (
-          <circle
-            cx={-8}
-            cy="40"
-            r="8"
-            fill="#10b981"
-            stroke="#1a1a2e"
-            strokeWidth={2}
-            style={{ cursor: 'pointer' }}
-            onMouseUp={(e) => onInputMouseUp(e, state.id)}
-          />
-        )}
-
-        {/* Outputs */}
-        {showOutput && (
-          hasMultipleOutputs ? (
-            (state as Fork).choices.map((_, idx) => (
-              <circle
-                key={idx}
-                cx={158}
-                cy={25 + idx * 25}
-                r="8"
-                fill="#3b82f6"
-                stroke="#1a1a2e"
-                strokeWidth={2}
-                style={{ cursor: 'pointer' }}
-                onMouseDown={(e) => onOutputMouseDown(e, state.id, idx)}
-              />
-            ))
-          ) : (
-            <circle
-              cx={158}
-              cy="40"
-              r="8"
-              fill="#3b82f6"
-              stroke="#1a1a2e"
-              strokeWidth={2}
-              style={{ cursor: 'pointer' }}
-              onMouseDown={(e) => onOutputMouseDown(e, state.id, 0)}
-            />
-          )
-        )}
-      </>
-    );
-  };
 
   const renderSceneNode = (scene: Scene) => {
     const descLines = buildLinesScene(scene.description);

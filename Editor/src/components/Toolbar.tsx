@@ -8,7 +8,6 @@ interface ToolbarProps {
   onLoadShow: () => void;
   onSave: () => void;
   onExport: () => void;
-  onValidate: () => void;
   onAddScene: () => void;
   onAddFork: () => void;
   onAddOpening: () => void;
@@ -22,7 +21,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onLoadShow,
   onSave,
   onExport,
-  onValidate,
   onAddScene,
   onAddFork,
   onAddOpening,
@@ -38,7 +36,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           </span>
         </div>
         <div className="project-actions">
-          <button 
+          <button
             onClick={onNewShow}
             className="btn btn-outline btn-sm"
             title="New Show"
@@ -46,7 +44,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             <FileText size={14} />
             New
           </button>
-          <button 
+          <button
             onClick={onLoadShow}
             className="btn btn-outline btn-sm"
             title="Load Show"
@@ -107,14 +105,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           {hasUnsavedChanges ? 'Save*' : 'Save'}
         </button>
 
-        <button
-          onClick={onValidate}
-          className="btn btn-outline"
-          title="Validate Show"
-        >
-          <Play size={16} />
-          Validate
-        </button>
 
         <button
           onClick={onExport}

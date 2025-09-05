@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { ProjectData } from './types';
 import { FileOperations } from './utils/fileOperations';
+import { loadShowFromFile } from './utils/fileLoaders';
 import { EditorLayout } from './components/EditorLayout';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -28,11 +29,23 @@ function App() {
   };
 
   const handleLoadShow = async () => {
+    console.log('=== handleLoadShow called at', new Date().toISOString(), '===');
+    console.log('loadShowFromFile function available:', typeof loadShowFromFile);
+
     setIsLoading(true);
     try {
-      const loadedProject = await FileOperations.loadShow();
-      if (loadedProject) {
-        setProjectData(loadedProject);
+      console.log('About to call loadShowFromFile');
+
+      if (typeof loadShowFromFile !== 'function') {
+        console.error('loadShowFromFile is not a function!');
+        return;
+      }
+
+      // Open file picker to allow user to select a file to load
+      const fileProject = await loadShowFromFile();
+      console.log('loadShowFromFile returned:', fileProject);
+      if (fileProject) {
+        setProjectData(fileProject);
         setHasUnsavedChanges(false); // Loaded project starts as saved
       }
     } catch (error) {
@@ -41,6 +54,7 @@ function App() {
       setIsLoading(false);
     }
   };
+
 
   const handleNewShow = async () => {
     setIsLoading(true);
