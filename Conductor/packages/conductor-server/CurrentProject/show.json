@@ -1,0 +1,372 @@
+{
+  "show": {
+    "showName": "Fantasy High",
+    "version": "1.0",
+    "created": "2025-09-06T01:47:41.320Z",
+    "lastEdited": "2025-09-06T14:57:05.864Z",
+    "initialStateId": "scene_1757123261320"
+  },
+  "states": [
+    {
+      "id": "scene_1757123261320",
+      "type": "scene",
+      "title": "Opening Scene",
+      "description": "Audience filters in and sits down.",
+      "performerText": "Run audience through introduction",
+      "audienceMedia": [],
+      "outputIds": [],
+      "position": {
+        "x": 80,
+        "y": 200
+      },
+      "connections": [
+        "node_1757123398904_spma5hyac"
+      ]
+    },
+    {
+      "id": "node_1757123334360_peydx6o9u",
+      "type": "scene",
+      "title": "New Year",
+      "description": "Students in enchanted uniforms enter glowing halls, where magic clashes with teenage drama under shimmering chandeliers.",
+      "performerText": "\"This was my first day...\"",
+      "audienceMedia": [
+        {
+          "type": "image",
+          "file": "assets/0.jpg",
+          "size": 84390
+        }
+      ],
+      "outputIds": [],
+      "position": {
+        "x": 360,
+        "y": 200
+      },
+      "connections": [
+        "node_1757123501314_cn8s08ssq"
+      ]
+    },
+    {
+      "id": "node_1757123416818_jv4vdmked",
+      "type": "fork",
+      "title": "Gets bullied",
+      "audienceText": "What do you do?",
+      "performerText": "\"I was so afraid...\"",
+      "countdownSeconds": 20,
+      "choices": [
+        {
+          "label": "Defend Myself",
+          "nextStateId": "node_1757123507022_2vmv5pjie"
+        },
+        {
+          "label": "Say your Sorry",
+          "nextStateId": "node_1757123519303_bzg4y95u1"
+        }
+      ],
+      "position": {
+        "x": 600,
+        "y": 220
+      },
+      "connections": [
+        "node_1757123510601_vnvonf7dj",
+        "node_1757123523771_ip03elaoi"
+      ],
+      "audienceMedia": [],
+      "outputIds": []
+    },
+    {
+      "id": "node_1757123507022_2vmv5pjie",
+      "type": "scene",
+      "title": "Detention",
+      "description": "In a dim, rune-carved classroom, rebellious students slump at desks.",
+      "performerText": "\"Hey kid, I know you!\"",
+      "audienceMedia": [],
+      "outputIds": [],
+      "position": {
+        "x": 900,
+        "y": 120
+      },
+      "connections": [
+        "node_1757124143362_36fob3bim"
+      ]
+    },
+    {
+      "id": "node_1757123519303_bzg4y95u1",
+      "type": "scene",
+      "title": "Pushed to the Floor",
+      "description": "Nerdy kids pick up the other kid.",
+      "performerText": "\"Want to join our group?\"",
+      "audienceMedia": [],
+      "outputIds": [],
+      "position": {
+        "x": 900,
+        "y": 320
+      },
+      "connections": [
+        "node_1757124748853_pzuwieq7z"
+      ]
+    },
+    {
+      "id": "node_1757124138914_r3u3tw4iw",
+      "type": "scene",
+      "title": "Auditorium",
+      "description": "Crystal chandeliers shimmer above a vast hall where enchanted banners wave and students whisper nervously.",
+      "performerText": "\"Why are we here?\"",
+      "audienceMedia": [],
+      "outputIds": [],
+      "position": {
+        "x": 1340,
+        "y": 140
+      },
+      "connections": [
+        "node_1757124222255_xsefs5mei"
+      ]
+    },
+    {
+      "id": "node_1757124206425_3hcq9n2ml",
+      "type": "fork",
+      "title": "Revenge",
+      "audienceText": "How will you seek revenge?",
+      "performerText": "\"We gotta revenge!\"",
+      "countdownSeconds": 30,
+      "choices": [
+        {
+          "label": "Talent Show",
+          "nextStateId": "node_1757124305706_vtb9g5o2j"
+        },
+        {
+          "label": "Basketball Game",
+          "nextStateId": "node_1757124334355_a1up3t357"
+        }
+      ],
+      "position": {
+        "x": 1600,
+        "y": 320
+      },
+      "connections": [
+        "node_1757124330852_dbh1dn42n",
+        "node_1757124352854_8wjjd82kt"
+      ],
+      "audienceMedia": [],
+      "outputIds": []
+    },
+    {
+      "id": "node_1757124305706_vtb9g5o2j",
+      "type": "scene",
+      "title": "Training Montage - Talent Show",
+      "description": "Students twirl through enchanted lights, levitating props swirl around, laughter and sparks blend into a magical celebration.",
+      "performerText": "\"WEEEE!\"",
+      "audienceMedia": [],
+      "outputIds": [],
+      "position": {
+        "x": 1840,
+        "y": 200
+      },
+      "connections": [
+        "node_1757124406992_zaronpedn"
+      ]
+    },
+    {
+      "id": "node_1757124334355_a1up3t357",
+      "type": "scene",
+      "title": "Training - Basketball",
+      "description": "Echoing with clashing practice swords, enchanted weights float midair as students train strength, agility, and spellbound endurance.",
+      "performerText": "\"GRRRRR\"",
+      "audienceMedia": [],
+      "outputIds": [],
+      "position": {
+        "x": 1920,
+        "y": 520
+      },
+      "connections": [
+        "node_1757124410000_g85i2rlkv"
+      ]
+    },
+    {
+      "id": "node_1757124399980_i142m5g4y",
+      "type": "scene",
+      "title": "Finale",
+      "description": "The nerds beat the bullies",
+      "performerText": "\"Yaaah!\"",
+      "audienceMedia": [
+        {
+          "type": "image",
+          "file": "assets/Screenshot 2025-08-22 222140.jpg",
+          "size": 362496
+        }
+      ],
+      "outputIds": [],
+      "position": {
+        "x": 2160,
+        "y": 380
+      },
+      "connections": [
+        "node_1757124427523_qpr2hojbb"
+      ]
+    },
+    {
+      "id": "node_1757124419029_jdd7rgb5w",
+      "type": "ending",
+      "title": "Ending Scene",
+      "description": "All lights and audio in walkout mode.",
+      "performerText": "\"Bya!\"",
+      "audienceMedia": [],
+      "outputIds": [],
+      "position": {
+        "x": 2440,
+        "y": 400
+      },
+      "connections": []
+    },
+    {
+      "id": "node_1757124686592_bchsd82zt",
+      "type": "fork",
+      "title": "New Shoes",
+      "audienceText": "What will you choose?",
+      "performerText": "",
+      "countdownSeconds": 30,
+      "choices": [
+        {
+          "label": "Blue",
+          "nextStateId": "node_1757124138914_r3u3tw4iw"
+        },
+        {
+          "label": "Red",
+          "nextStateId": "node_1757124782353_3dpegbtwt"
+        }
+      ],
+      "position": {
+        "x": 1120,
+        "y": 340
+      },
+      "connections": [
+        "node_1757124764447_dy55iqzdm",
+        "node_1757124809163_lkaclto2b"
+      ],
+      "audienceMedia": [],
+      "outputIds": []
+    },
+    {
+      "id": "node_1757124782353_3dpegbtwt",
+      "type": "scene",
+      "title": "Fast Feet",
+      "description": "Feet blur across enchanted floors, sparks trailing each step as agility drills push students beyond mortal limits.",
+      "performerText": "\"I gotta go fast\"",
+      "audienceMedia": [],
+      "outputIds": [],
+      "position": {
+        "x": 1380,
+        "y": 460
+      },
+      "connections": [
+        "node_1757124821037_w2vrhnpje"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "node_1757123398904_spma5hyac",
+      "fromNodeId": "scene_1757123261320",
+      "fromOutputIndex": 0,
+      "toNodeId": "node_1757123334360_peydx6o9u"
+    },
+    {
+      "id": "node_1757123501314_cn8s08ssq",
+      "fromNodeId": "node_1757123334360_peydx6o9u",
+      "fromOutputIndex": 0,
+      "toNodeId": "node_1757123416818_jv4vdmked"
+    },
+    {
+      "id": "node_1757123510601_vnvonf7dj",
+      "fromNodeId": "node_1757123416818_jv4vdmked",
+      "fromOutputIndex": 0,
+      "toNodeId": "node_1757123507022_2vmv5pjie"
+    },
+    {
+      "id": "node_1757123523771_ip03elaoi",
+      "fromNodeId": "node_1757123416818_jv4vdmked",
+      "fromOutputIndex": 1,
+      "toNodeId": "node_1757123519303_bzg4y95u1"
+    },
+    {
+      "id": "node_1757124143362_36fob3bim",
+      "fromNodeId": "node_1757123507022_2vmv5pjie",
+      "fromOutputIndex": 0,
+      "toNodeId": "node_1757124138914_r3u3tw4iw"
+    },
+    {
+      "id": "node_1757124222255_xsefs5mei",
+      "fromNodeId": "node_1757124138914_r3u3tw4iw",
+      "fromOutputIndex": 0,
+      "toNodeId": "node_1757124206425_3hcq9n2ml"
+    },
+    {
+      "id": "node_1757124330852_dbh1dn42n",
+      "fromNodeId": "node_1757124206425_3hcq9n2ml",
+      "fromOutputIndex": 0,
+      "toNodeId": "node_1757124305706_vtb9g5o2j"
+    },
+    {
+      "id": "node_1757124352854_8wjjd82kt",
+      "fromNodeId": "node_1757124206425_3hcq9n2ml",
+      "fromOutputIndex": 1,
+      "toNodeId": "node_1757124334355_a1up3t357"
+    },
+    {
+      "id": "node_1757124406992_zaronpedn",
+      "fromNodeId": "node_1757124305706_vtb9g5o2j",
+      "fromOutputIndex": 0,
+      "toNodeId": "node_1757124399980_i142m5g4y"
+    },
+    {
+      "id": "node_1757124410000_g85i2rlkv",
+      "fromNodeId": "node_1757124334355_a1up3t357",
+      "fromOutputIndex": 0,
+      "toNodeId": "node_1757124399980_i142m5g4y"
+    },
+    {
+      "id": "node_1757124427523_qpr2hojbb",
+      "fromNodeId": "node_1757124399980_i142m5g4y",
+      "fromOutputIndex": 0,
+      "toNodeId": "node_1757124419029_jdd7rgb5w"
+    },
+    {
+      "id": "node_1757124748853_pzuwieq7z",
+      "fromNodeId": "node_1757123519303_bzg4y95u1",
+      "fromOutputIndex": 0,
+      "toNodeId": "node_1757124686592_bchsd82zt"
+    },
+    {
+      "id": "node_1757124764447_dy55iqzdm",
+      "fromNodeId": "node_1757124686592_bchsd82zt",
+      "fromOutputIndex": 0,
+      "toNodeId": "node_1757124138914_r3u3tw4iw"
+    },
+    {
+      "id": "node_1757124809163_lkaclto2b",
+      "fromNodeId": "node_1757124686592_bchsd82zt",
+      "fromOutputIndex": 1,
+      "toNodeId": "node_1757124782353_3dpegbtwt"
+    },
+    {
+      "id": "node_1757124821037_w2vrhnpje",
+      "fromNodeId": "node_1757124782353_3dpegbtwt",
+      "fromOutputIndex": 0,
+      "toNodeId": "node_1757124206425_3hcq9n2ml"
+    }
+  ],
+  "outputs": [],
+  "metadata": {
+    "author": "Kaiman Walker",
+    "lastEditor": "Kaiman Walker",
+    "version": "1.0",
+    "notes": "New show created"
+  },
+  "exportedAt": "2025-09-06T14:57:07.582Z",
+  "version": "1.0",
+  "packageFormat": "meander-show-v2",
+  "assets": {
+    "folder": "assets",
+    "totalFiles": 2,
+    "missingFiles": []
+  }
+}

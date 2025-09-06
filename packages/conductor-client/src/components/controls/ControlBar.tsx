@@ -37,3 +37,4 @@ const ControlBar: React.FC<ControlBarProps> = ({ onAdvance, onPrevious }) => {
 export default ControlBar;
 
 
+

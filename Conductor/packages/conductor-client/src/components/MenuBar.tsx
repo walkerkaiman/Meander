@@ -1,29 +1,48 @@
 import React from 'react';
 import { useShowStore } from '../store/useShowStore';
-import { ExportLoader } from 'shared-export-loader';
+// Local file upload helper
 import './MenuBar.css';
 
 const MenuBar: React.FC = () => {
   const { setShow } = useShowStore();
   
   const handleLoadShow = async () => {
-    try {
-      // Use the shared export loader
-      const projectData = await ExportLoader.loadShowFromFile();
-      if (projectData) {
-        // Convert ProjectData format to the Conductor's expected format
-        const conductorData = {
-          states: projectData.states,
-          connections: projectData.connections
-        };
-        setShow(conductorData);
-        alert(`Show loaded successfully!\n\n📄 States: ${projectData.states.length}\n🔗 Connections: ${projectData.connections.length}\n\nShow: ${projectData.show.showName}`);
-      } else {
-        alert('Failed to load the show. The file may be corrupted or in an unsupported format.');
+    // create a hidden file input
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.zip';
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+
+      try {
+        const form = new FormData();
+        form.append('show', file);
+
+        const res = await fetch(`http://${location.hostname}:4000/upload`, {
+          method: 'POST',
+          body: form,
+        });
+
+        if (!res.ok) {
+          const msg = await res.text();
+          alert(`Upload failed: ${msg}`);
+          return;
+        }
+
+        // Fetch the graph the server just loaded
+        const graphRes = await fetch(`http://${location.hostname}:4000/audience/graph`);
+        if (graphRes.ok) {
+          const graph = await graphRes.json();
+          setShow(graph);
+        } else {
+          alert('Show uploaded but graph not ready yet.');
+        }
+      } catch (err) {
+        alert(`Upload error: ${err instanceof Error ? err.message : 'Unknown'}`);
       }
-    } catch (error) {
-      alert(`Failed to load show: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
+    };
+    input.click();
   };
 
 

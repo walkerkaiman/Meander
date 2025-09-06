@@ -73,7 +73,13 @@ const Canvas: React.FC = () => {
         id: conn.id,
         source: conn.fromNodeId,
         target: conn.toNodeId,
-        sourceHandle: conn.fromOutputIndex > 0 ? `output-${conn.fromOutputIndex}` : 'output',
+        sourceHandle: (() => {
+          const fromNode = states.find(s => s.id === conn.fromNodeId);
+          if (fromNode && fromNode.type === 'fork') {
+            return `output-${conn.fromOutputIndex}`;
+          }
+          return 'output';
+        })(),
         type: 'smoothstep',
         animated: false,
         markerEnd: 'url(#arrowhead)',

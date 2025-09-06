@@ -74,6 +74,7 @@ const SceneNode = ({ data, isConnectable }: { data: any; isConnectable: boolean 
       <Handle
         type="source"
         position={Position.Right}
+        id="output"
         style={{ background: '#3b82f6', border: '2px solid #1a1a2e', width: 16, height: 16, right: -8, top: '50%', transform:'translateY(-50%)' }}
         isConnectable={isConnectable}
       />

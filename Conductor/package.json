@@ -23,6 +23,8 @@
     "wait-on": "^7.0.1"
   },
   "dependencies": {
+    "adm-zip": "^0.5.16",
+    "multer": "^2.0.2",
     "react-flow-renderer": "^10.3.17"
   }
 }

@@ -3,6 +3,11 @@ import http from "http";
 import { WebSocketServer } from "ws";
 import helmet from "helmet";
 import cors from "cors";
+import path from "path";
+import fs from "fs";
+import { promises as fsp } from "fs";
+import multer from "multer";
+import AdmZip from "adm-zip";
 import dotenv from "dotenv";
 import { EventEmitter } from "eventemitter3";
 import { z } from "zod";
@@ -33,6 +38,87 @@ app.use(helmet());
 app.use(cors({ origin: true }));
 app.use(express.json({ limit: "10mb" }));
 app.use("/audience", audienceRouter);
+
+// Serve media assets extracted from show packages
+// Assets are expected under <DATA_DIR>/assets/<filename>
+// In dev we want CurrentProject folder alongside repository root so files are easy to inspect.
+const PROJECT_ROOT = path.resolve(process.cwd());
+const projectDir = path.join(PROJECT_ROOT, "CurrentProject");
+const projectAssetsDir = path.join(projectDir, "assets");
+
+// Ensure directories exist and mount static handler
+fs.mkdirSync(projectAssetsDir, { recursive: true });
+app.use(
+  "/media",
+  express.static(projectAssetsDir, {
+    etag: false,
+    maxAge: 0,
+    cacheControl: false,
+    setHeaders(res) {
+      res.setHeader('Cross-Origin-Resource-Policy', 'same-site');
+    },
+  })
+);
+
+// ------------------ Upload Show Package ------------------
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+
+app.post("/upload", upload.single("show"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: "No file uploaded" });
+    }
+
+    // Extract zip in memory using AdmZip
+    const zip = new AdmZip(req.file.buffer);
+    const zipEntries = zip.getEntries();
+
+    // read show.json
+    const showEntry = zipEntries.find((e) => e.entryName === "show.json");
+    if (!showEntry) {
+      return res.status(400).json({ success: false, error: "show.json missing in package" });
+    }
+    let showJson: any = JSON.parse(showEntry.getData().toString("utf-8"));
+
+    // Convert legacy format (states array) to nodes record expected by Sequencer
+    if (!showJson.nodes && Array.isArray(showJson.states)) {
+      const nodesRec: Record<string, any> = {};
+      for (const s of showJson.states) {
+        nodesRec[s.id] = { ...s }; // keep all properties (position, performerText, etc.)
+      }
+      showJson = {
+        metadata: { initialStateId: showJson.show?.initialStateId ?? showJson.show?.initialStateId ?? Object.keys(nodesRec)[0] },
+        nodes: nodesRec,
+        connections: showJson.connections ?? [],
+      };
+    }
+
+    // Wipe previous project dir
+    try {
+      await fsp.rm(projectDir, { recursive: true, force: true });
+    } catch (_) {}
+    await fsp.mkdir(projectAssetsDir, { recursive: true });
+
+    // Manually extract entries so we can catch errors and ensure files are written
+    for (const entry of zipEntries) {
+      const destPath = path.join(projectDir, entry.entryName);
+      if (entry.isDirectory) {
+        await fsp.mkdir(destPath, { recursive: true });
+      } else {
+        await fsp.mkdir(path.dirname(destPath), { recursive: true });
+        await fsp.writeFile(destPath, entry.getData());
+      }
+    }
+
+    // Delegate to sequencer to load package
+    sequencer.loadShow(showJson);
+
+    res.json({ success: true });
+  } catch (e: any) {
+    console.error("Upload failed", e);
+    res.status(500).json({ success: false, error: e?.message ?? "Server error" });
+  }
+});
 
 // Health endpoint
 app.get("/healthz", (_, res) => {

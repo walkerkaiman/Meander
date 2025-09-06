@@ -4,9 +4,33 @@ import { eventBus } from "./eventBus";
 import { OscPublisher } from "./osc";
 import { ActiveState, VotePayload } from "@meander/conductor-types";
 
+// Extended connection shape used when the package explicitly defines graph edges
+export interface Connection {
+  id: string;
+  fromNodeId: string;
+  toNodeId: string;
+  /** Index of the output that originates this edge (0 for scenes, 0/1/.. for fork choices) */
+  fromOutputIndex: number;
+  /** Optional human-readable label (typically fork choice text) */
+  label?: string;
+}
+
 export interface ShowPackage {
   metadata: { initialStateId: string };
-  nodes: Record<string, { id: string; type: "scene" | "fork"; next?: string; choices?: Array<{ nextStateId: string }> }>;
+  nodes: Record<
+    string,
+    {
+      id: string;
+      type: "scene" | "fork";
+      next?: string;
+      choices?: Array<{ label?: string; nextStateId: string }>;
+    }
+  >;
+  /**
+   * Optional explicit connections section. When present, these edges will be
+   * used verbatim instead of being derived from the node data.
+   */
+  connections?: Connection[];
 }
 
 export class Sequencer {
@@ -47,20 +71,41 @@ export class Sequencer {
       type: n.type,
       title: (n as any).title ?? n.id,
       description: (n as any).description ?? "",
+      performerText: (n as any).performerText ?? "",
+      audienceText: (n as any).audienceText ?? "",
+      countdownSeconds: (n as any).countdownSeconds ?? undefined,
       choices: (n as any).choices ?? [],
-      position: { x: (idx % 5) * 200 + 100, y: Math.floor(idx / 5) * 150 + 100 },
+      position: (n as any).position ?? { x: (idx % 5) * 200 + 100, y: Math.floor(idx / 5) * 150 + 100 },
+      audienceMedia: ((n as any).audienceMedia ?? []).map((m: any) => {
+        const rawName = typeof m === "string" ? m : m.file ?? "";
+        const filename = rawName.replace(/^assets[\\/]/, "");
+        return `/media/${filename}`;
+      }),
     }));
-    const connections: Array<any> = [];
-    Object.values(show.nodes).forEach((n: any) => {
-      if (n.type === "scene" && n.next) {
-        connections.push({ id: `${n.id}->${n.next}`, fromNodeId: n.id, toNodeId: n.next, fromOutputIndex: 0, label: "" });
-      }
-      if (n.type === "fork" && n.choices) {
-        n.choices.forEach((c: any, idx: number) => {
-          connections.push({ id: `${n.id}-${idx}->${c.nextStateId}`, fromNodeId: n.id, toNodeId: c.nextStateId, fromOutputIndex: idx, label: c.label });
-        });
-      }
-    });
+    // Prefer explicit connections from the package when available; otherwise
+    // derive them from the node topology for backward-compatibility with older
+    // show formats.
+    let connections: Array<any> = [];
+    if (Array.isArray(show.connections) && show.connections.length > 0) {
+      connections = show.connections.map((c) => ({
+        id: c.id ?? `${c.fromNodeId}-${typeof c.fromOutputIndex === "number" ? c.fromOutputIndex : 0}->${c.toNodeId}`,
+        fromNodeId: c.fromNodeId,
+        toNodeId: c.toNodeId,
+        fromOutputIndex: typeof c.fromOutputIndex === "number" ? c.fromOutputIndex : 0,
+        label: c.label ?? "",
+      }));
+    } else {
+      Object.values(show.nodes).forEach((n: any) => {
+        if (n.type === "scene" && n.next) {
+          connections.push({ id: `${n.id}->${n.next}`, fromNodeId: n.id, toNodeId: n.next, fromOutputIndex: 0, label: "" });
+        }
+        if (n.type === "fork" && n.choices) {
+          n.choices.forEach((c: any, idx: number) => {
+            connections.push({ id: `${n.id}-${idx}->${c.nextStateId}`, fromNodeId: n.id, toNodeId: c.nextStateId, fromOutputIndex: idx, label: c.label });
+          });
+        }
+      });
+    }
     require("./routes/audience").snapshot.graph = { states, connections };
     this.persist();
     eventBus.emit("showLoaded", { showId: "local" });
