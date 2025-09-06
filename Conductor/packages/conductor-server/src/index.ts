@@ -9,6 +9,7 @@ import { z } from "zod";
 import { audienceRouter } from "./routes/audience";
 import { Sequencer } from "./sequencer";
 import { eventBus as serverEventBus } from "./eventBus";
+import { snapshot } from "./routes/audience";
 
 // Load env
 dotenv.config();
@@ -44,16 +45,16 @@ app.post("/advance", (_req, res) => {
   res.status(202).end();
 });
 
-// TODO: attach routes (audience service etc.)
+// ----- Voting State -----
+type VoteSession = {
+  forkId: string;
+  remaining: number;
+  interval: NodeJS.Timeout;
+};
 
-// WebSocket basic echo for now
-wss.on("connection", (ws) => {
-  ws.on("message", (data) => {
-    console.log("WS recv", data.toString());
-  });
-});
+let activeVote: VoteSession | null = null;
+const VOTE_DURATION = 15; // seconds
 
-// WS broadcast helper
 function broadcast(data: any) {
   const msg = JSON.stringify(data);
   wss.clients.forEach((client) => {
@@ -63,8 +64,47 @@ function broadcast(data: any) {
   });
 }
 
+function startVote(forkId: string) {
+  if (activeVote) return; // ignore if already voting
+  let remaining = VOTE_DURATION;
+  const interval = setInterval(() => {
+    remaining -= 1;
+    broadcast({ type: "voteTick", payload: { forkId, remainingSeconds: remaining } });
+    if (remaining <= 0) {
+      clearInterval(interval);
+      const winnerIndex: 0 | 1 = Math.random() > 0.5 ? 0 : 1; // placeholder random winner
+      broadcast({ type: "voteResult", payload: { forkId, counts: [0, 0], winnerIndex } });
+      activeVote = null;
+      sequencer.manualAdvance(); // move to winner path TODO compute path based on winner
+    }
+  }, 1000);
+
+  activeVote = { forkId, remaining, interval };
+  broadcast({ type: "voteTick", payload: { forkId, remainingSeconds: remaining } });
+}
+
+// WebSocket connection handler
+wss.on("connection", (ws) => {
+  // Immediately send current state if available
+  if (snapshot.activeState) {
+    ws.send(JSON.stringify({ type: "stateChanged", payload: snapshot.activeState }));
+  }
+  ws.on("message", (data) => {
+    try {
+      const msg = JSON.parse(data.toString());
+      if (msg.type === "startVote") {
+        startVote(msg.payload.forkId);
+      }
+    } catch (e) {
+      console.warn("WS bad message", e);
+    }
+  });
+});
+
 // Wire internal events to WS
-serverEventBus.on("stateChanged", (payload) => broadcast({ type: "stateChanged", payload }));
+serverEventBus.on("stateChanged", (payload) => {
+  snapshot.activeState = payload; // keep REST snapshot in sync
+});
 serverEventBus.on("validationError", (payload) => broadcast({ type: "validationError", payload }));
 
 // Start server

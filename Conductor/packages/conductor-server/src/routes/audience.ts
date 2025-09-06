@@ -6,10 +6,11 @@ import { VotePayload } from "@meander/conductor-types";
 
 export interface Snapshot {
   activeState: { id: string; type: "scene" | "fork" } | null;
+  graph?: any;
 }
 
 // Simple in-memory snapshot for now
-const snapshot: Snapshot = { activeState: null };
+const snapshot: Snapshot = { activeState: null, graph: null };
 
 const voteSchema = z.object({
   showId: z.string(),
@@ -31,6 +32,13 @@ router.get("/show", (_req, res) => {
     return res.status(503).json({ code: "ERR_SHOW_NOT_FOUND", message: "No show loaded" });
   }
   res.json(snapshot.activeState);
+});
+
+router.get("/graph", (_req, res) => {
+  if (!snapshot.graph) {
+    return res.status(503).json({ code: "ERR_NO_GRAPH", message: "No graph loaded" });
+  }
+  res.json(snapshot.graph);
 });
 
 router.post("/vote", (req, res) => {

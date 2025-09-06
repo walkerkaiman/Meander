@@ -6,6 +6,9 @@ import ControlBar from './components/ControlBar';
 import MenuBar from './components/MenuBar';
 import './App.css';
 
+import { useConductorSocket } from "./hooks/useConductorSocket";
+import { useInitialState } from "./hooks/useInitialState";
+
 function App() {
   const { showData, setShow } = useShowStore();
   const [isLoading, setIsLoading] = useState(true);
@@ -15,21 +18,23 @@ function App() {
     const loadShowData = async () => {
       setIsLoading(true);
       try {
-        // This is a placeholder until we implement actual show loading
-        // For now, we'll use dummy data or an empty show
-        const dummyShowData = {
-          states: [],
-          connections: []
-        };
-        setShow(dummyShowData);
+        const res = await fetch(`http://${location.hostname}:4000/audience/graph`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const graph = await res.json();
+        setShow(graph);
       } catch (error) {
-        console.error('Error loading show data:', error);
+        console.warn('Graph not ready yet, will load later');
+        setShow({ states: [], connections: [] });
       } finally {
         setIsLoading(false);
       }
     };
     loadShowData();
   }, [setShow]);
+
+  // Establish WS connection & runtime engine
+  useConductorSocket();
+  useInitialState();
 
   if (isLoading) {
     return <div className="loading">Loading show data...</div>;

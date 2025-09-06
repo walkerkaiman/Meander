@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { ActiveState } from '@meander/conductor-types';
 
 interface ShowData {
+  openingNodeId: string;
   states: any[];
   connections: any[];
 }
@@ -26,7 +27,17 @@ export const useShowStore = create<ShowStore>((set, get) => ({
   activeState: null,
   history: [],
   validationErrors: [],
-  setShow: (data) => set({ showData: data }),
+  setShow: (data) => {
+    const opening = data.states.find((s:any)=>s.id===data.openingNodeId)
+      || data.states.find((s:any)=>s.type === 'opening')
+      || data.states[0];
+    set({ 
+      showData: data,
+      activeState: opening ? { id: opening.id, type: opening.type } : null,
+      history: opening ? [{ id: opening.id, type: opening.type }] : [],
+      canAdvance: data.connections.some((c:any)=>c.fromNodeId===opening.id),
+    });
+  },
   setActiveState: (state) => set((s) => ({ activeState: state, history: [...s.history, state], canAdvance: true })),
   pushError: (err) => set((s) => ({ validationErrors: [...s.validationErrors, err] })),
   clearErrors: () => set({ validationErrors: [] }),
@@ -34,20 +45,23 @@ export const useShowStore = create<ShowStore>((set, get) => ({
     const currentState = get().activeState;
     const showData = get().showData;
     if (!currentState || !showData) return;
-    // Placeholder logic for advancing state
-    // In a real implementation, this would find the next state based on connections
-    const currentIndex = showData.states.findIndex(s => s.id === currentState.id);
-    if (currentIndex < showData.states.length - 1) {
-      const nextState = showData.states[currentIndex + 1];
-      set((s) => ({ 
-        activeState: { id: nextState.id, type: nextState.type }, 
-        history: [...s.history, { id: nextState.id, type: nextState.type }],
-        canAdvance: currentIndex + 1 < showData.states.length - 1,
-        canGoBack: true
-      }));
-    } else {
-      set({ canAdvance: false });
+    // find first connection where fromNodeId matches current
+    const nextConn = showData.connections.find((c:any)=>c.fromNodeId===currentState.id);
+    if (!nextConn) {
+      set({ canAdvance:false });
+      return;
     }
+    const nextState = showData.states.find((s:any)=>s.id===nextConn.toNodeId);
+    if (!nextState) {
+      set({ canAdvance:false });
+      return;
+    }
+    set((s)=>({
+      activeState:{ id: nextState.id, type: nextState.type },
+      history:[...s.history,{ id: nextState.id, type: nextState.type }],
+      canAdvance: showData.connections.some((c:any)=>c.fromNodeId===nextState.id),
+      canGoBack: true
+    }));
   },
   previousState: () => {
     const history = get().history;

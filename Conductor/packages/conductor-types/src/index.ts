@@ -18,6 +18,21 @@ export interface VoteResult {
   winnerIndex: 0 | 1;
 }
 
+// ---------------- WebSocket messaging schema ----------------
+// Client -> Server messages
+export type ClientMessage =
+  | { type: "startVote"; payload: { forkId: string } };
+
+// Server -> Client messages
+export type ServerMessage =
+  | { type: "stateChanged"; payload: ActiveState }
+  | { type: "validationError"; payload: unknown }
+  | { type: "voteTick"; payload: { forkId: string; remainingSeconds: number } }
+  | { type: "voteResult"; payload: VoteResult };
+
+// Utility helper types
+export type AnyMessage = ClientMessage | ServerMessage;
+
 // Re-export core editor types so downstream code can import from one place.
 // The Editor project isn't published as a package yet, so we re-declare minimal placeholders here.
 export interface SceneNode {

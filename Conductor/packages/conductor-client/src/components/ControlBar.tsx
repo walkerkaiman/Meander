@@ -1,40 +1,20 @@
-import React from 'react';
-import { useShowStore } from '../store/useShowStore';
-import './ControlBar.css';
+import React from "react";
+import "./ControlBar.css";
+import { useShowStore } from "../store/useShowStore";
 
 const ControlBar: React.FC = () => {
-  const { activeState, advanceState, previousState, canAdvance, canGoBack } = useShowStore();
-  
-  const handleAdvance = () => {
-    if (canAdvance) {
-      advanceState();
-    }
-  };
-
-  const handlePrevious = () => {
-    if (canGoBack) {
-      previousState();
-    }
-  };
+  const activeState = useShowStore((s) => s.activeState);
+  const canAdvance = useShowStore((s) => s.canAdvance);
+  const advance = useShowStore((s) => s.advanceState);
 
   return (
     <div className="control-bar">
-      <button 
-        className="control-btn control-btn-back" 
-        onClick={handlePrevious}
-        disabled={!canGoBack}
-      >
-        Back
-      </button>
-      <div className="control-info">
-        {activeState ? 'Active State: ' + activeState.id : 'No Active State'}
-      </div>
-      <button 
-        className="control-btn control-btn-advance" 
-        onClick={handleAdvance}
+      <button
+        className="control-btn control-btn-advance"
+        onClick={advance}
         disabled={!canAdvance}
       >
-        Advance
+        {activeState?.type === "fork" ? "Start Vote" : "Advance"}
       </button>
     </div>
   );
