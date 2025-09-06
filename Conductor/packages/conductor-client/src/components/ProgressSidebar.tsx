@@ -2,6 +2,7 @@ import React from 'react';
 import { useShowStore } from '../store/useShowStore';
 import './ProgressSidebar.css';
 import MediaPreview from './MediaPreview';
+import { useConductorEngine } from '../runtime/useConductorEngine';
 
 const ProgressSidebar: React.FC = () => {
   const { showData, activeState } = useShowStore();

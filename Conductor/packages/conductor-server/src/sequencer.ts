@@ -39,6 +39,7 @@ export class Sequencer {
   private osc = new OscPublisher();
   private heartbeatTimer: NodeJS.Timeout | null = null;
   private show: ShowPackage | null = null;
+  private timers = { showStart: null as number | null, sceneStart: null as number | null };
 
   constructor(private dataDir: string) {
     const dbPath = path.join(dataDir, "db", "current");
@@ -64,7 +65,13 @@ export class Sequencer {
 
   public loadShow(show: ShowPackage) {
     this.show = show;
+    // reset timers for fresh show
+    this.timers.showStart = Date.now();
+    this.timers.sceneStart = null;
     this.current = { id: show.metadata.initialStateId, type: show.nodes[show.metadata.initialStateId].type } as ActiveState;
+    if (this.current.type === "scene") {
+      this.timers.sceneStart = Date.now();
+    }
     // Build simple graph format for conductor-client
     const states = Object.values(show.nodes).map((n, idx) => ({
       id: n.id,
@@ -122,6 +129,7 @@ export class Sequencer {
     if (!this.current) return;
     // For brevity, skipping validation
     this.current = { id: nextId, type: "scene" } as ActiveState;
+    this.timers.sceneStart = Date.now();
     this.persist();
     // OSC broadcast
     const path = this.current.type === "scene" ? `/scene/${nextId}` : `/fork/${nextId}`;

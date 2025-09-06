@@ -141,6 +141,16 @@ type VoteSession = {
 let activeVote: VoteSession | null = null;
 const VOTE_DURATION = 15; // seconds
 
+// ---- Timer broadcast ----
+setInterval(() => {
+  const seq = sequencer as any;
+  if (!seq.timers || !seq.timers.showStart) return;
+  const now = Date.now();
+  const showSeconds = Math.floor((now - seq.timers.showStart) / 1000);
+  const sceneSeconds = seq.timers.sceneStart ? Math.floor((now - seq.timers.sceneStart) / 1000) : 0;
+  broadcast({ type: "timerTick", payload: { showSeconds, sceneSeconds } });
+}, 1000);
+
 function broadcast(data: any) {
   const msg = JSON.stringify(data);
   wss.clients.forEach((client) => {

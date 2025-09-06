@@ -28,7 +28,8 @@ export type ServerMessage =
   | { type: "stateChanged"; payload: ActiveState }
   | { type: "validationError"; payload: unknown }
   | { type: "voteTick"; payload: { forkId: string; remainingSeconds: number } }
-  | { type: "voteResult"; payload: VoteResult };
+  | { type: "voteResult"; payload: VoteResult }
+  | { type: "timerTick"; payload: { showSeconds: number; sceneSeconds: number } };
 
 // Utility helper types
 export type AnyMessage = ClientMessage | ServerMessage;

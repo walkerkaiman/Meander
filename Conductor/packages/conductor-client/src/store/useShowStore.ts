@@ -28,14 +28,19 @@ export const useShowStore = create<ShowStore>((set, get) => ({
   history: [],
   validationErrors: [],
   setShow: (data) => {
-    const opening = data.states.find((s:any)=>s.id===data.openingNodeId)
-      || data.states.find((s:any)=>s.type === 'opening')
-      || data.states[0];
+    const current = get().activeState;
+    let active = current;
+    if (!active) {
+      const opening = data.states.find((s:any)=>s.id===data.openingNodeId)
+        || data.states.find((s:any)=>s.type === 'opening')
+        || data.states[0];
+      active = opening ? { id: opening.id, type: opening.type } : null;
+    }
     set({ 
       showData: data,
-      activeState: opening ? { id: opening.id, type: opening.type } : null,
-      history: opening ? [{ id: opening.id, type: opening.type }] : [],
-      canAdvance: data.connections.some((c:any)=>c.fromNodeId===opening.id),
+      activeState: active,
+      history: active ? [{ id: active.id, type: active.type }] : [],
+      canAdvance: active ? data.connections.some((c:any)=>c.fromNodeId===active.id) : false,
     });
   },
   setActiveState: (state) => set((s) => ({ activeState: state, history: [...s.history, state], canAdvance: true })),

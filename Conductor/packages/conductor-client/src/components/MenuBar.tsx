@@ -1,10 +1,14 @@
 import React from 'react';
 import { useShowStore } from '../store/useShowStore';
+import { useConductorEngine } from '../runtime/useConductorEngine';
 // Local file upload helper
 import './MenuBar.css';
 
 const MenuBar: React.FC = () => {
   const { setShow } = useShowStore();
+  const showSeconds = useConductorEngine((s)=>s.showSeconds);
+  const fmt = (secs:number)=> new Date(secs*1000).toISOString().substr(11,8);
+  const setTimers = useConductorEngine((s)=>s.setTimers);
   
   const handleLoadShow = async () => {
     // create a hidden file input
@@ -35,6 +39,7 @@ const MenuBar: React.FC = () => {
         if (graphRes.ok) {
           const graph = await graphRes.json();
           setShow(graph);
+          setTimers(0,0); // reset immediately; server ticks will follow
         } else {
           alert('Show uploaded but graph not ready yet.');
         }
@@ -53,6 +58,7 @@ const MenuBar: React.FC = () => {
   return (
     <div className="menu-bar">
       <div className="menu-logo">MEANDER Conductor</div>
+      <div style={{color:'#a0a0a0', marginLeft:'1rem'}}>{fmt(showSeconds)}</div>
       <div className="menu-actions">
         <button className="menu-btn" onClick={triggerFileInput}>
           Load Show

@@ -22,6 +22,7 @@ export function useConductorSocket() {
   const setActive = useConductorEngine((s) => s.setActiveState);
   const setCountdown = useConductorEngine((s) => s.setCountdown);
   const completeVote = useConductorEngine((s) => s.completeVote);
+  const setTimers = useConductorEngine((s)=>s.setTimers);
 
   const pushErr = useShowStore((s) => s.pushError);
 
@@ -51,6 +52,9 @@ export function useConductorSocket() {
             break;
           case "voteResult":
             completeVote(msg.payload);
+            break;
+          case "timerTick":
+            setTimers(msg.payload.showSeconds, msg.payload.sceneSeconds);
             break;
         }
       } catch (e) {

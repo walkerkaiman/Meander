@@ -18,10 +18,13 @@ interface EngineState {
   countdown: number | null;
   isVoting: boolean;
   voteResult: VoteResult | null;
+  showSeconds: number;
+  sceneSeconds: number;
   // Actions
   setActiveState: (s: ActiveState) => void;
   setCountdown: (seconds: number) => void;
   completeVote: (result: VoteResult) => void;
+  setTimers: (show: number, scene: number) => void;
   advance: () => void;
 }
 
@@ -30,6 +33,8 @@ export const useConductorEngine = create<EngineState>((set, get) => ({
   countdown: null,
   isVoting: false,
   voteResult: null,
+  showSeconds: 0,
+  sceneSeconds: 0,
 
   // --- mutators used by other hooks ---
   setActiveState: async (s) => {
@@ -46,6 +51,8 @@ export const useConductorEngine = create<EngineState>((set, get) => ({
   },
   setCountdown: (seconds) => set({ countdown: seconds, isVoting: true }),
   completeVote: (result) => set({ voteResult: result, isVoting: false, countdown: null }),
+
+  setTimers: (show, scene) => set({ showSeconds: show, sceneSeconds: scene }),
 
   // --- public advance API used by UI ---
   advance: () => {
