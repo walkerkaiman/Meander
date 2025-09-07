@@ -15,6 +15,11 @@ const nodeTypes: NodeTypes = {
 
 const Canvas: React.FC = () => {
   const { showData, activeState } = useShowStore();
+
+  // Debug logging for Canvas state changes
+  React.useEffect(() => {
+    console.log('🎨 Canvas received activeState update:', activeState);
+  }, [activeState]);
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
 
@@ -26,18 +31,22 @@ const Canvas: React.FC = () => {
   const states = showData.states || [];
 
   // Convert states to nodes for React Flow
+  console.log('🔄 Building nodes for activeState:', activeState?.id, 'total states:', states.length);
   const nodes = states.map(state => {
     // Ensure position is defined and reasonable
-    const position = state.position && state.position.x !== undefined && state.position.y !== undefined 
-      ? state.position 
+    const position = state.position && state.position.x !== undefined && state.position.y !== undefined
+      ? state.position
       : { x: Math.random() * 400 + 100, y: Math.random() * 300 + 100 };
+
+    const isCurrent = state.id === activeState?.id;
+    console.log(`🔍 Node ${state.id} isCurrent: ${isCurrent} (activeState: ${activeState?.id})`);
 
     return {
       id: state.id,
       type: state.type === 'fork' ? 'forkNode' : 'sceneNode',
       data: {
         label: state.title || 'Untitled Node',
-        isCurrent: state.id === activeState?.id,
+        isCurrent: isCurrent,
         type: state.type,
         description: state.description || '',
         choices: state.type === 'fork' ? state.choices : [],
@@ -45,21 +54,29 @@ const Canvas: React.FC = () => {
       },
       position: position,
       draggable: false,
-      selectable: false
+      selectable: false,
+      // Force re-render by including activeState in key
+      key: `${state.id}-${activeState?.id || 'none'}`
     };
   });
 
   // Ensure connections array exists
   const connections = showData.connections || [];
+  console.log('🔗 Building edges from connections:', connections.length, 'connections');
 
   // Convert connections to edges for React Flow
   const edges = connections
     .filter(conn => {
       const sourceExists = nodes.some(n => n.id === conn.fromNodeId);
       const targetExists = nodes.some(n => n.id === conn.toNodeId);
-      return sourceExists && targetExists;
+      const exists = sourceExists && targetExists;
+      if (!exists) {
+        console.log('⚠️ Filtering out connection:', conn.fromNodeId, '->', conn.toNodeId, '(source exists:', sourceExists, ', target exists:', targetExists, ')');
+      }
+      return exists;
     })
     .map(conn => {
+      console.log('🔗 Creating edge:', conn.fromNodeId, '->', conn.toNodeId);
       // derive label for fork choices if missing
       let label = conn.label || '';
       if (!label) {
@@ -91,6 +108,8 @@ const Canvas: React.FC = () => {
       };
     });
 
+  console.log('🔗 Final edges created:', edges.length, 'edges');
+
   const onLoad = useCallback((rfi) => {
     if (!reactFlowInstance) {
       setReactFlowInstance(rfi);
@@ -103,10 +122,13 @@ const Canvas: React.FC = () => {
 
   useEffect(() => {
     if (reactFlowInstance && nodes.length > 0) {
+      console.log('🎯 useEffect triggered - updating React Flow nodes');
+      // Force update the nodes in React Flow
+      reactFlowInstance.setNodes(nodes);
       // Fit view to show all nodes
-        setTimeout(() => {
-          reactFlowInstance.fitView({ nodes: nodes, duration: 500 });
-          }, 100);
+      setTimeout(() => {
+        reactFlowInstance.fitView({ nodes: nodes, duration: 500 });
+      }, 100);
     }
   }, [reactFlowInstance, activeState, nodes]);
 

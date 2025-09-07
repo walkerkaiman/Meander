@@ -42,8 +42,11 @@ export class Sequencer {
   private timers = { showStart: null as number | null, sceneStart: null as number | null };
 
   constructor(private dataDir: string) {
+    console.log('🎭 Initializing Sequencer with data directory:', dataDir);
     const dbPath = path.join(dataDir, "db", "current");
+    console.log('🎭 DB path:', dbPath);
     this.db = new Level(dbPath, { valueEncoding: "json" });
+    console.log('🎭 Sequencer DB initialized, calling restore...');
     this.restore();
 
     // Heartbeat every 5 seconds
@@ -54,13 +57,224 @@ export class Sequencer {
   }
 
   private async restore() {
+    console.log('🔄 Starting sequencer restore process...');
     try {
-      const snapshot = await this.db.get("current");
-      this.current = snapshot as ActiveState;
-      if (this.current) {
-        eventBus.emit("stateChanged", this.current);
+      // Restore current state
+      console.log('🔄 Attempting to restore current state from database...');
+      try {
+        const snapshot = await this.db.get("current");
+        this.current = snapshot as ActiveState;
+        console.log('🔄 Raw current state from DB:', snapshot);
+        console.log('✅ Successfully loaded current state from DB');
+      } catch (currentError) {
+        console.log('ℹ️ No saved current state found in database');
+        this.current = null;
       }
-    } catch (_) {}
+
+      // Restore show data
+      try {
+        console.log('🔄 Attempting to restore show data from database...');
+        const showData = await this.db.get("show");
+        this.show = showData as ShowPackage;
+        console.log('✅ Restored show data:', this.show ? 'loaded' : 'none');
+        if (this.show) {
+          console.log('✅ Show data details:', {
+            hasNodes: !!this.show.nodes,
+            hasStates: !!this.show.states,
+            nodeCount: this.show.nodes ? Object.keys(this.show.nodes).length : (this.show.states ? this.show.states.length : 0)
+          });
+
+          // Restore graph snapshot
+          console.log('🔄 Rebuilding graph snapshot from restored show data...');
+          console.log('🔄 Show data format check - has nodes:', !!this.show.nodes, 'has states:', !!this.show.states);
+
+          let states: any[] = [];
+          let connections: any[] = [];
+
+          // Handle both old format (states array) and new format (nodes object)
+          if (this.show.nodes) {
+            // New format
+            console.log('🔄 Processing new format (nodes object)');
+            states = Object.values(this.show.nodes).map((n: any, idx) => ({
+              id: n.id,
+              type: n.type,
+              title: n.title ?? n.id,
+              description: n.description ?? "",
+              performerText: n.performerText ?? "",
+              audienceText: n.audienceText ?? "",
+              countdownSeconds: n.countdownSeconds ?? undefined,
+              choices: n.choices ?? [],
+              position: n.position ?? { x: Math.random() * 400 + 100, y: Math.random() * 300 + 100 },
+              connections: n.connections ?? []
+            }));
+
+            // Skip building connections from node-level connections arrays if top-level connections exist
+            // The node-level connections contain connection IDs, not target node IDs
+            const hasTopLevelConnections = this.show.connections && Array.isArray(this.show.connections);
+            
+            if (!hasTopLevelConnections) {
+              console.log('🔄 Building connections from node-level connections arrays (fallback mode)');
+              // Build connections from node-level connections arrays
+              const nodeIds = new Set(Object.keys(this.show.nodes)); // Track valid node IDs
+              Object.values(this.show.nodes).forEach((n: any) => {
+                if (n.connections && Array.isArray(n.connections)) {
+                  n.connections.forEach((targetId: string, idx: number) => {
+                    // Only include connections that point to existing nodes
+                    if (nodeIds.has(targetId)) {
+                      // Get label from choices if this is a fork node
+                      let label = '';
+                      if (n.type === 'fork' && n.choices && n.choices[idx]) {
+                        label = n.choices[idx].label || '';
+                      }
+
+                      connections.push({
+                        id: `${n.id}-${idx}->${targetId}`,
+                        fromNodeId: n.id,
+                        toNodeId: targetId,
+                        fromOutputIndex: idx,
+                        label: label
+                      });
+                    } else {
+                      console.log(`⚠️ Skipping connection from ${n.id} to non-existent node ${targetId}`);
+                    }
+                  });
+                }
+              });
+            } else {
+              console.log('🔄 Top-level connections array found, skipping node-level connections processing');
+            }
+          } else if (this.show.states) {
+            // Old format
+            console.log('🔄 Processing old format (states array)');
+            states = this.show.states.map((n: any, idx) => ({
+              id: n.id,
+              type: n.type,
+              title: n.title ?? n.id,
+              description: n.description ?? "",
+              performerText: n.performerText ?? "",
+              audienceText: n.audienceText ?? "",
+              countdownSeconds: n.countdownSeconds ?? undefined,
+              choices: n.choices ?? [],
+              position: n.position ?? { x: Math.random() * 400 + 100, y: Math.random() * 300 + 100 },
+              connections: n.connections ?? []
+            }));
+
+            // Build connections from old format (next/choices)
+            this.show.states.forEach((n: any) => {
+              if (n.type === "scene" && n.next && nodeIds.has(n.next)) {
+                connections.push({
+                  id: `${n.id}->${n.next}`,
+                  fromNodeId: n.id,
+                  toNodeId: n.next,
+                  fromOutputIndex: 0,
+                  label: ""
+                });
+              } else if (n.type === "scene" && n.next && !nodeIds.has(n.next)) {
+                console.log(`⚠️ Skipping scene connection from ${n.id} to non-existent node ${n.next}`);
+              }
+
+              if (n.type === "fork" && n.choices) {
+                n.choices.forEach((c: any, idx: number) => {
+                  if (c.nextStateId && nodeIds.has(c.nextStateId)) {
+                    connections.push({
+                      id: `${n.id}-${idx}->${c.nextStateId}`,
+                      fromNodeId: n.id,
+                      toNodeId: c.nextStateId,
+                      fromOutputIndex: idx,
+                      label: c.label || ""
+                    });
+                  } else if (c.nextStateId && !nodeIds.has(c.nextStateId)) {
+                    console.log(`⚠️ Skipping fork choice connection from ${n.id} to non-existent node ${c.nextStateId}`);
+                  }
+                });
+              }
+            });
+          }
+
+          // Use the top-level connections array from show.json
+          let restoredConnections: Array<any> = [];
+          const nodeIds = new Set(Object.keys(this.show.nodes)); // Track valid node IDs
+
+          if (this.show.connections && Array.isArray(this.show.connections)) {
+            console.log('🔄 Using top-level connections array from show.json in restore');
+            restoredConnections = this.show.connections
+              .filter((conn: any) => {
+                // Only include connections where both source and target nodes exist
+                const sourceExists = nodeIds.has(conn.fromNodeId);
+                const targetExists = nodeIds.has(conn.toNodeId);
+                if (!sourceExists || !targetExists) {
+                  console.log(`⚠️ Skipping connection from ${conn.fromNodeId} to ${conn.toNodeId} (source: ${sourceExists}, target: ${targetExists})`);
+                  return false;
+                }
+                return true;
+              })
+              .map((conn: any) => {
+                // Get label from choices if this is a fork node
+                let label = conn.label || '';
+                if (!label) {
+                  const fromNode = this.show.nodes[conn.fromNodeId];
+                  if (fromNode && fromNode.type === 'fork' && fromNode.choices && fromNode.choices[conn.fromOutputIndex]) {
+                    label = fromNode.choices[conn.fromOutputIndex].label || `Choice ${conn.fromOutputIndex + 1}`;
+                  }
+                }
+
+                return {
+                  id: conn.id,
+                  fromNodeId: conn.fromNodeId,
+                  toNodeId: conn.toNodeId,
+                  fromOutputIndex: conn.fromOutputIndex || 0,
+                  label: label
+                };
+              });
+          } else {
+            console.log('🔄 No top-level connections array in restore, using node-level connections');
+            // Use the connections built from node-level data (fallback mode)
+            restoredConnections = connections;
+          }
+
+          console.log('🔄 Built states array:', states.map(s => ({ id: s.id, type: s.type })));
+          console.log('🔄 Built connections array:', restoredConnections.map(c => ({ from: c.fromNodeId, to: c.toNodeId })));
+
+          // Import the snapshot object to ensure we're using the same instance as the routes
+          const { snapshot } = require("./routes/audience");
+          snapshot.graph = { states, connections: restoredConnections };
+          console.log('✅ Restored graph snapshot with', states.length, 'states and', restoredConnections.length, 'connections');
+        }
+        console.log('✅ Successfully loaded show data from DB');
+      } catch (showError) {
+        console.log('ℹ️ No saved show data found in database');
+        this.show = null;
+      }
+
+      if (this.current) {
+        // Verify the current state node exists in the restored graph
+        let nodeExists = false;
+        if (this.show?.nodes && this.show.nodes[this.current.id]) {
+          nodeExists = true;
+        } else if (this.show?.states && this.show.states.find((s: any) => s.id === this.current.id)) {
+          nodeExists = true;
+        }
+
+        if (nodeExists) {
+          // Also restore current state in the snapshot
+          const { snapshot } = require("./routes/audience");
+          snapshot.activeState = this.current;
+          console.log('✅ Restored current state in snapshot:', this.current);
+
+          eventBus.emit("stateChanged", this.current);
+          console.log('✅ Emitted stateChanged event for restored state:', this.current);
+        } else {
+          console.log('⚠️ Current state node does not exist in restored graph, clearing current state');
+          this.current = null;
+          const { snapshot } = require("./routes/audience");
+          snapshot.activeState = null;
+        }
+      } else {
+        console.log('ℹ️ No current state to restore');
+      }
+    } catch (error) {
+      console.log('ℹ️ No saved state found');
+    }
   }
 
   public loadShow(show: ShowPackage) {
@@ -89,71 +303,339 @@ export class Sequencer {
         return `/media/${filename}`;
       }),
     }));
-    // Prefer explicit connections from the package when available; otherwise
-    // derive them from the node topology for backward-compatibility with older
-    // show formats.
+    // Use the top-level connections array from show.json
     let connections: Array<any> = [];
-    if (Array.isArray(show.connections) && show.connections.length > 0) {
-      connections = show.connections.map((c) => ({
-        id: c.id ?? `${c.fromNodeId}-${typeof c.fromOutputIndex === "number" ? c.fromOutputIndex : 0}->${c.toNodeId}`,
-        fromNodeId: c.fromNodeId,
-        toNodeId: c.toNodeId,
-        fromOutputIndex: typeof c.fromOutputIndex === "number" ? c.fromOutputIndex : 0,
-        label: c.label ?? "",
-      }));
+    const nodeIds = new Set(Object.keys(show.nodes)); // Track valid node IDs
+
+    if (show.connections && Array.isArray(show.connections)) {
+      console.log('🔄 Using top-level connections array from show.json');
+      connections = show.connections
+        .filter((conn: any) => {
+          // Only include connections where both source and target nodes exist
+          const sourceExists = nodeIds.has(conn.fromNodeId);
+          const targetExists = nodeIds.has(conn.toNodeId);
+          if (!sourceExists || !targetExists) {
+            console.log(`⚠️ Skipping connection from ${conn.fromNodeId} to ${conn.toNodeId} (source: ${sourceExists}, target: ${targetExists})`);
+            return false;
+          }
+          return true;
+        })
+        .map((conn: any) => {
+          // Get label from choices if this is a fork node
+          let label = conn.label || '';
+          if (!label) {
+            const fromNode = show.nodes[conn.fromNodeId];
+            if (fromNode && fromNode.type === 'fork' && fromNode.choices && fromNode.choices[conn.fromOutputIndex]) {
+              label = fromNode.choices[conn.fromOutputIndex].label || `Choice ${conn.fromOutputIndex + 1}`;
+            }
+          }
+
+          return {
+            id: conn.id,
+            fromNodeId: conn.fromNodeId,
+            toNodeId: conn.toNodeId,
+            fromOutputIndex: conn.fromOutputIndex || 0,
+            label: label
+          };
+        });
     } else {
+      // Fallback to node-level connections if no top-level connections array
+      console.log('🔄 No top-level connections array, using node-level connections');
       Object.values(show.nodes).forEach((n: any) => {
-        if (n.type === "scene" && n.next) {
-          connections.push({ id: `${n.id}->${n.next}`, fromNodeId: n.id, toNodeId: n.next, fromOutputIndex: 0, label: "" });
-        }
-        if (n.type === "fork" && n.choices) {
-          n.choices.forEach((c: any, idx: number) => {
-            connections.push({ id: `${n.id}-${idx}->${c.nextStateId}`, fromNodeId: n.id, toNodeId: c.nextStateId, fromOutputIndex: idx, label: c.label });
+        if (n.connections && Array.isArray(n.connections)) {
+          n.connections.forEach((targetId: string, idx: number) => {
+            if (nodeIds.has(targetId)) {
+              let label = '';
+              if (n.type === 'fork' && n.choices && n.choices[idx]) {
+                label = n.choices[idx].label || '';
+              }
+
+              connections.push({
+                id: `${n.id}-${idx}->${targetId}`,
+                fromNodeId: n.id,
+                toNodeId: targetId,
+                fromOutputIndex: idx,
+                label: label
+              });
+            } else {
+              console.log(`⚠️ Skipping connection from ${n.id} to non-existent node ${targetId}`);
+            }
           });
         }
       });
     }
-    require("./routes/audience").snapshot.graph = { states, connections };
+
+    // If no valid connections found, create a simple linear flow between existing nodes
+    if (connections.length === 0 && states.length > 1) {
+      console.log('🔄 No valid connections found, creating simple linear flow...');
+
+      // Simple approach: connect each node to the next node in sequence
+      for (let i = 0; i < states.length - 1; i++) {
+        const fromNode = states[i];
+        const toNode = states[i + 1];
+
+        // For Fork nodes, create one connection per choice to the same target
+        if (fromNode.type === 'fork' && fromNode.choices && fromNode.choices.length > 0) {
+          fromNode.choices.forEach((choice: any, choiceIdx: number) => {
+            connections.push({
+              id: `${fromNode.id}-${choiceIdx}->${toNode.id}`,
+              fromNodeId: fromNode.id,
+              toNodeId: toNode.id,
+              fromOutputIndex: choiceIdx,
+              label: choice.label || `Choice ${choiceIdx + 1}`
+            });
+
+            console.log(`🔄 Created fork fallback connection: ${fromNode.id} [${choice.label || `Choice ${choiceIdx + 1}`}] -> ${toNode.id}`);
+          });
+        } else {
+          // For Scene nodes, create single connection
+          connections.push({
+            id: `${fromNode.id}->${toNode.id}`,
+            fromNodeId: fromNode.id,
+            toNodeId: toNode.id,
+            fromOutputIndex: 0,
+            label: ''
+          });
+
+          console.log(`🔄 Created scene fallback connection: ${fromNode.id} -> ${toNode.id}`);
+        }
+      }
+
+      console.log(`🔄 Created ${connections.length} fallback connections in linear sequence`);
+      connections.forEach((conn, idx) => {
+        console.log(`🔗 [${idx}] ${conn.fromNodeId} -> ${conn.toNodeId} (output: ${conn.fromOutputIndex}, label: "${conn.label}")`);
+      });
+    }
+
+    console.log('📊 Updating graph snapshot in audience routes...');
+    console.log('📊 States to set:', states.length, 'states:', states.map(s => s.id));
+    console.log('📊 Connections to set:', connections.length, 'connections:', connections.map(c => `${c.fromNodeId} -> ${c.toNodeId}`));
+
+    const { snapshot } = require("./routes/audience");
+    snapshot.graph = { states, connections };
+    console.log('📊 Graph snapshot updated in audience routes');
+
     this.persist();
+    // Persist the show data
+    this.persistShow();
     eventBus.emit("showLoaded", { showId: "local" });
     eventBus.emit("stateChanged", this.current);
   }
 
   public manualAdvance() {
-    if (!this.current) return;
+    console.log('🎯 MANUAL ADVANCE called');
+    console.log('Current state object:', this.current);
+    if (!this.current) {
+      console.log('❌ No current state to advance from');
+      return;
+    }
+
+    console.log('Current node ID:', this.current.id, 'Type:', this.current.type);
     const nextId = this.computeNext(this.current.id);
+    console.log('📍 Next ID computed:', nextId, 'from current:', this.current.id);
+
+    if (nextId === this.current.id) {
+      console.log('⚠️ WARNING: Next ID is the same as current ID!');
+    }
+
     this.advance(nextId);
   }
 
   private advance(nextId: string) {
-    if (!this.current) return;
-    // For brevity, skipping validation
-    this.current = { id: nextId, type: "scene" } as ActiveState;
-    this.timers.sceneStart = Date.now();
+    console.log('🚀 ADVANCE method called with nextId:', nextId);
+    if (!this.current) {
+      console.log('❌ No current state in advance method');
+      return;
+    }
+
+    // Determine the actual node type from the show graph
+    let nodeType: "scene" | "fork" = "scene"; // default fallback
+    let nextNode;
+
+    if (this.show && this.show.nodes && this.show.nodes[nextId]) {
+      // New format
+      nextNode = this.show.nodes[nextId];
+      nodeType = nextNode.type;
+      console.log('✅ Node type determined from new format:', nodeType, 'for node:', nextId);
+    } else if (this.show && this.show.states) {
+      // Old format
+      nextNode = this.show.states.find((s: any) => s.id === nextId);
+      if (nextNode) {
+        nodeType = nextNode.type;
+        console.log('✅ Node type determined from old format:', nodeType, 'for node:', nextId);
+      } else {
+        console.log('⚠️ Next node not found, using fallback "scene"');
+      }
+    } else {
+      console.log('⚠️ Could not determine node type, using fallback "scene"');
+    }
+
+    const oldState = this.current;
+    this.current = { id: nextId, type: nodeType } as ActiveState;
+    console.log('🔄 State changed from:', oldState, 'to:', this.current);
+
+    if (nodeType === "scene") {
+      this.timers.sceneStart = Date.now();
+    }
+
     this.persist();
     // OSC broadcast
-    const path = this.current.type === "scene" ? `/scene/${nextId}` : `/fork/${nextId}`;
+    const path = nodeType === "scene" ? `/scene/${nextId}` : `/fork/${nextId}`;
     this.osc.stateChanged(path);
+
+    console.log('📡 Broadcasting stateChanged event:', this.current);
     eventBus.emit("stateChanged", this.current);
   }
 
   private computeNext(currentId: string): string {
-    if (!this.show) return currentId;
-    const node = this.show.nodes[currentId];
-    if (!node) return currentId;
+    console.log('🔍 computeNext called for:', currentId);
+    console.log('🔍 Show data format check - has nodes:', !!this.show?.nodes, 'has states:', !!this.show?.states);
+
+    if (!this.show) {
+      console.log('❌ No show data available');
+      return currentId;
+    }
+
+    // Handle both old format (states array) and new format (nodes object)
+    let node;
+    if (this.show.nodes && this.show.nodes[currentId]) {
+      // New format
+      node = this.show.nodes[currentId];
+      console.log('✅ Found node in new format (nodes):', node);
+      console.log('✅ Node connections:', node.connections);
+    } else if (this.show.states) {
+      // Old format - find node in states array
+      node = this.show.states.find((s: any) => s.id === currentId);
+      console.log('✅ Found node in old format (states):', node);
+      console.log('✅ Node connections (old format):', node?.connections);
+    }
+
+    if (!node) {
+      console.log('❌ Node not found:', currentId);
+      if (this.show.nodes) {
+        console.log('❌ Available nodes (new format):', Object.keys(this.show.nodes));
+      } else if (this.show.states) {
+        console.log('❌ Available nodes (old format):', this.show.states.map((s: any) => s.id));
+      }
+      return currentId;
+    }
+
     if (node.type === "scene") {
-      return node.next ?? currentId;
+      // Use graph connections instead of node-level connections
+      let nextId = currentId;
+
+      console.log('🎯 Scene node processing, looking up graph connections...');
+      
+      // Look up connections from the graph snapshot
+      const { snapshot } = require("./routes/audience");
+      const graphConnections = snapshot.graph?.connections || [];
+      console.log('🎯 Available graph connections:', graphConnections.length);
+      
+      // Find connection from current node
+      const outgoingConnection = graphConnections.find((conn: any) => conn.fromNodeId === currentId);
+      
+      if (outgoingConnection) {
+        nextId = outgoingConnection.toNodeId;
+        console.log('🎯 Scene node, using graph connection:', nextId, 'from connection:', outgoingConnection.id);
+
+        // Verify the target node exists in show data
+        let targetExists = false;
+        if (this.show.nodes && this.show.nodes[nextId]) {
+          targetExists = true;
+          console.log('✅ Target node exists in show data');
+        } else if (this.show.states && this.show.states.find((s: any) => s.id === nextId)) {
+          targetExists = true;
+          console.log('✅ Target node exists in show data');
+        }
+
+        if (!targetExists) {
+          console.log('⚠️ WARNING: Target node', nextId, 'does not exist in show data!');
+          console.log('⚠️ Available nodes:', this.show.nodes ? Object.keys(this.show.nodes) : this.show.states?.map((s: any) => s.id));
+          return currentId; // Don't advance to non-existent node
+        }
+
+      } else {
+        console.log('⚠️ Scene node has no outgoing connections in graph, staying at current:', currentId);
+        console.log('🔍 Graph connections from this node:', graphConnections.filter((c: any) => c.fromNodeId === currentId));
+      }
+
+      return nextId;
     }
-    // If fork - for manual advance we default to first choice
-    if (node.type === "fork" && node.choices && node.choices.length > 0) {
-      return node.choices[0].nextStateId;
+
+    // If fork - for manual advance we default to first connection
+    if (node.type === "fork") {
+      let nextId = currentId;
+
+      console.log('🎯 Fork node processing, looking up graph connections...');
+      
+      // Look up connections from the graph snapshot
+      const { snapshot } = require("./routes/audience");
+      const graphConnections = snapshot.graph?.connections || [];
+      
+      // Find connections from current fork node (forks can have multiple outgoing connections)
+      const outgoingConnections = graphConnections.filter((conn: any) => conn.fromNodeId === currentId);
+      
+      if (outgoingConnections.length > 0) {
+        // Use first connection for manual advance (default path)
+        nextId = outgoingConnections[0].toNodeId;
+        console.log('🎯 Fork node, using first graph connection:', nextId, 'from', outgoingConnections.length, 'available connections');
+
+        // Verify the target node exists
+        let targetExists = false;
+        if (this.show.nodes && this.show.nodes[nextId]) {
+          targetExists = true;
+          console.log('✅ Fork target node exists in show data');
+        } else if (this.show.states && this.show.states.find((s: any) => s.id === nextId)) {
+          targetExists = true;
+          console.log('✅ Fork target node exists in show data');
+        }
+
+        if (!targetExists) {
+          console.log('⚠️ WARNING: Fork target node', nextId, 'does not exist in show data!');
+          return currentId; // Don't advance to non-existent node
+        }
+
+      } else if (node.choices && node.choices.length > 0) {
+        // Fallback to choices if graph connections don't exist
+        nextId = node.choices[0].nextStateId;
+        console.log('🎯 Fork node, using first choice (fallback):', nextId);
+        console.log('Fork choices:', node.choices);
+      } else {
+        console.log('⚠️ Fork node has no graph connections or choices, staying at current:', currentId);
+        console.log('🔍 Available graph connections from this node:', outgoingConnections);
+      }
+
+      return nextId;
     }
+
+    console.log('❓ No next ID found, returning current:', currentId);
+    console.log('Node type:', node.type, 'has choices:', !!node.choices);
     return currentId;
   }
 
   private persist() {
     if (this.current) {
-      this.db.put("current", this.current).catch(console.error);
+      console.log('💾 Persisting current state to DB:', this.current);
+      this.db.put("current", this.current)
+        .then(() => console.log('✅ Successfully persisted current state'))
+        .catch(error => console.error('❌ Failed to persist current state:', error));
+    } else {
+      console.log('💾 No current state to persist');
+    }
+  }
+
+  private persistShow() {
+    if (this.show) {
+      console.log('💾 Persisting show data to DB:', {
+        hasNodes: !!this.show.nodes,
+        hasStates: !!this.show.states,
+        nodeCount: this.show.nodes ? Object.keys(this.show.nodes).length : (this.show.states ? this.show.states.length : 0)
+      });
+      this.db.put("show", this.show)
+        .then(() => console.log('✅ Successfully persisted show data'))
+        .catch(error => console.error('❌ Failed to persist show data:', error));
+    } else {
+      console.log('💾 No show data to persist');
     }
   }
 

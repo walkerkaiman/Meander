@@ -7,6 +7,7 @@ const ControlBar: React.FC = () => {
   const activeState = useShowStore((s) => s.activeState);
   const canAdvance = useShowStore((s) => s.canAdvance);
   const engineAdvance = useConductorEngine((s)=>s.advance);
+  const engineStartVote = useConductorEngine((s)=>s.startVote);
   const localAdvance = useShowStore((s)=>s.advanceState);
   const { showSeconds, sceneSeconds } = useConductorEngine();
   const fmt = (s:number)=> new Date(s*1000).toISOString().substr(11,8);
@@ -19,8 +20,16 @@ const ControlBar: React.FC = () => {
       <button
         className="control-btn control-btn-advance"
         onClick={() => {
-          localAdvance(); // optimistic UI update
-          engineAdvance();
+          if (activeState?.type === "fork") {
+            // For forks, just start the vote (don't do optimistic advance)
+            console.log('🗳️ Starting vote for fork:', activeState.id);
+            engineStartVote();
+          } else {
+            // For scenes, do optimistic advance + server advance
+            console.log('🚀 Advancing from scene:', activeState?.id);
+            localAdvance(); // optimistic UI update
+            engineAdvance();
+          }
         }}
         disabled={!canAdvance}
       >

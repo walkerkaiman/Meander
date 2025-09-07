@@ -1,0 +1,152 @@
+Audience Website Design Document
+
+For Interactive Choose-Your-Own-Adventure Backend
+
+1. States & Visuals
+Scene (includes Opening & Ending)
+
+Media Display:
+
+Fullscreen image or video (autoplay, loop, no controls, scaled to fill screen).
+
+If multiple media files exist: use the first item only.
+
+Fallback: black fullscreen background.
+
+Overlays: none.
+
+Transitions: crossfade from previous state to new media (0.5s recommended).
+
+Fork
+
+Notification: Device vibrates once on entry.
+
+UI Elements:
+
+Countdown timer: centered, bold, high-contrast text.
+
+Choice buttons:
+
+Evenly distributed across screen space.
+
+Size dynamically based on number of options (minimum 44px height, WCAG).
+
+Highlighted state when tapped/selected.
+
+Background: black
+
+Interaction Rules:
+
+User can tap/change selection multiple times until timer expires.
+
+Hover feedback (desktop) and tap highlight feedback (mobile).
+
+At expiration: automatically lock selection and send vote.
+
+2. Interaction
+
+Choice Selection:
+
+User taps a choice button → highlight changes to that button.
+
+Deselection not needed; tapping another overrides previous.
+
+Feedback:
+
+Visual highlight (e.g., border glow or fill color).
+
+Optional haptic vibration on selection.
+
+Submission:
+
+Automatically sent when timer expires (/audience/vote).
+
+If user has not selected, send “no vote” value.
+
+3. Timing Rules
+
+Countdown Format: 05, 04, etc. (SS).
+
+Timer Behavior:
+
+If user loads page mid-countdown, show current remaining time (provided by timerTick message).
+
+UI updates every second (or per timerTick messages).
+
+End of Timer: lock UI, send vote, gray out buttons
+
+4. Responsiveness
+
+Layouts:
+
+Portrait: vertical stacking of choices (buttons fill width, evenly spaced down page).
+
+Landscape: horizontal or grid layout (buttons evenly spaced side-by-side).
+
+Font & Button Sizes:
+
+Minimum 16px font size.
+
+Choice buttons minimum 44px tall (touch accessible).
+
+Timer text: at least 8% of screen width, bold, centered.
+
+Rotation: smooth reflow on orientation change, preserving active state/selection.
+
+5. Networking
+
+Messages from Server (via WebSockets):
+
+stateChanged → triggers Scene or Fork rendering.
+
+voteTick → optional updates during voting.
+
+voteResult → optional display of outcomes (not required in base spec).
+
+timerTick → updates countdown timer.
+
+Client → Server Endpoints:
+
+/audience/vote (POST): sends { choiceId, userId/sessionId }.
+
+6. Accessibility / Styling Preferences
+
+Color Scheme:
+
+Background: black.
+
+Text: white, high-contrast.
+
+Choice buttons:
+
+Default: dark gray with white text.
+
+Hover: lighter gray.
+
+Selected: bright accent color (blue/green).
+
+Fonts:
+
+Sans-serif (e.g., Inter, Roboto).
+
+Bold for headings/timer.
+
+Contrast: WCAG AA minimum.
+
+Animations:
+
+Smooth button highlight transitions (≤150ms).
+
+Fade-in for scenes/forks.
+
+7. Summary of User Flow
+
+Scene state → Media plays fullscreen (or black background).
+
+Fork state → Vibrate + timer + dynamic choice buttons. User selects one or changes until timer ends.
+
+Timer ends → Vote automatically sent.
+
+Next Scene → Display new media (looping).
+
+Opening/Ending → Same as Scene behavior

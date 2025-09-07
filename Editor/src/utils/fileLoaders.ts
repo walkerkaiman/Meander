@@ -24,9 +24,21 @@ export async function loadExportedShow(file: File): Promise<ProjectData | null> 
     }
 
     // Convert exported data back to ProjectData format
+    // Handle both old format (states array) and new format (nodes object)
+    let states: any[];
+    if (exportData.nodes) {
+      // New format: convert nodes object to states array
+      states = Object.values(exportData.nodes);
+    } else if (exportData.states) {
+      // Old format: use states array directly
+      states = exportData.states;
+    } else {
+      throw new Error('Invalid export format: neither nodes nor states found');
+    }
+
     const projectData: ProjectData = {
       show: exportData.show,
-      states: exportData.states.map((state: any) => ({
+      states: states.map((state: any) => ({
         ...state,
         audienceMedia: (state.audienceMedia || []).map((media: any) => ({
           ...media,

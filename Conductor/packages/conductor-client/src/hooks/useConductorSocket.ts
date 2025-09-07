@@ -39,8 +39,12 @@ export function useConductorSocket() {
     ws.onmessage = (evt) => {
       try {
         const msg: ServerMessage = JSON.parse(evt.data);
+        console.log('📨 Conductor Client received WebSocket message:', msg);
+
         switch (msg.type) {
           case "stateChanged":
+            console.log('🎭 Processing stateChanged:', msg.payload);
+            console.log('🎭 Current state before processing:', { activeState: null, showData: null }); // Will be set by useConductorEngine
             setActive(msg.payload);
             break;
           case "validationError":

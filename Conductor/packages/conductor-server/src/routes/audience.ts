@@ -10,7 +10,7 @@ export interface Snapshot {
 }
 
 // Simple in-memory snapshot for now
-const snapshot: Snapshot = { activeState: null, graph: null };
+export const snapshot: Snapshot = { activeState: null, graph: null };
 
 const voteSchema = z.object({
   showId: z.string(),
@@ -35,9 +35,16 @@ router.get("/show", (_req, res) => {
 });
 
 router.get("/graph", (_req, res) => {
+  console.log('📊 Graph requested, available:', !!snapshot.graph);
   if (!snapshot.graph) {
-    return res.status(503).json({ code: "ERR_NO_GRAPH", message: "No graph loaded" });
+    console.log('❌ No graph available in snapshot');
+    return res.status(404).json({ code: "ERR_NO_GRAPH", message: "No show loaded yet. Please upload a show in the Conductor interface first." });
   }
+
+  console.log('✅ Returning graph with', snapshot.graph.states?.length || 0, 'states');
+  console.log('✅ Graph states:', snapshot.graph.states?.map((s: any) => ({ id: s.id, connections: s.connections })) || []);
+  console.log('✅ Graph connections:', snapshot.graph.connections?.map((c: any) => `${c.fromNodeId} -> ${c.toNodeId}`) || []);
+
   res.json(snapshot.graph);
 });
 
@@ -52,4 +59,3 @@ router.post("/vote", (req, res) => {
 });
 
 export { router as audienceRouter };
-export { snapshot };

@@ -23,10 +23,17 @@ const MenuBar: React.FC = () => {
         const form = new FormData();
         form.append('show', file);
 
-        const res = await fetch(`http://${location.hostname}:4000/upload`, {
+        console.log('🔄 Attempting to upload file:', file.name, 'Size:', file.size);
+        console.log('🔗 Current location:', location.hostname, location.port, location.protocol);
+        const uploadUrl = `http://localhost:4000/upload`;
+        console.log('🔗 Upload URL:', uploadUrl);
+
+        const res = await fetch(uploadUrl, {
           method: 'POST',
           body: form,
         });
+
+        console.log('📡 Upload response status:', res.status, res.statusText);
 
         if (!res.ok) {
           const msg = await res.text();
@@ -35,12 +42,19 @@ const MenuBar: React.FC = () => {
         }
 
         // Fetch the graph the server just loaded
-        const graphRes = await fetch(`http://${location.hostname}:4000/audience/graph`);
+        const graphRes = await fetch(`http://localhost:4000/audience/graph`);
         if (graphRes.ok) {
           const graph = await graphRes.json();
+          console.log('📊 Graph received from server:', {
+            statesCount: graph.states?.length || 0,
+            connectionsCount: graph.connections?.length || 0,
+            states: graph.states?.map((s: any) => ({ id: s.id, connections: s.connections })) || [],
+            connections: graph.connections?.map((c: any) => `${c.fromNodeId} -> ${c.toNodeId}`) || []
+          });
           setShow(graph);
           setTimers(0,0); // reset immediately; server ticks will follow
         } else {
+          console.log('❌ Graph fetch failed:', graphRes.status, graphRes.statusText);
           alert('Show uploaded but graph not ready yet.');
         }
       } catch (err) {

@@ -60,12 +60,19 @@ app.use(
   })
 );
 
+// Audience UI static files
+app.use('/audience-ui', express.static(path.join(__dirname, '../public')));
+
 // ------------------ Upload Show Package ------------------
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
 app.post("/upload", upload.single("show"), async (req, res) => {
+  console.log('📡 Upload request received');
+  console.log('📄 File details:', req.file ? { name: req.file.originalname, size: req.file.size } : 'No file');
+
   try {
     if (!req.file) {
+      console.log('❌ No file in upload request');
       return res.status(400).json({ success: false, error: "No file uploaded" });
     }
 
@@ -111,7 +118,9 @@ app.post("/upload", upload.single("show"), async (req, res) => {
     }
 
     // Delegate to sequencer to load package
+    console.log('📦 Loading show package...');
     sequencer.loadShow(showJson);
+    console.log('✅ Show package loaded and persisted');
 
     res.json({ success: true });
   } catch (e: any) {
@@ -127,7 +136,15 @@ app.get("/healthz", (_, res) => {
 
 // Manual advance endpoint
 app.post("/advance", (_req, res) => {
+  console.log('🔄 ADVANCE REQUEST RECEIVED');
+  console.log('Current state before advance:', sequencer.current);
+  console.log('Show data available:', !!sequencer.show);
+  console.log('Show nodes available:', sequencer.show ? Object.keys(sequencer.show.nodes || {}).length : 'no show');
+
   sequencer.manualAdvance();
+
+  console.log('New state after advance:', sequencer.current);
+  console.log('✅ Advance request completed');
   res.status(202).end();
 });
 
@@ -162,7 +179,18 @@ function broadcast(data: any) {
 
 function startVote(forkId: string) {
   if (activeVote) return; // ignore if already voting
-  let remaining = VOTE_DURATION;
+
+  // Get countdown duration from the fork node
+  let countdownSeconds = VOTE_DURATION; // default fallback
+  if (sequencer && (sequencer as any).show && (sequencer as any).show.nodes) {
+    const forkNode = (sequencer as any).show.nodes[forkId];
+    if (forkNode && forkNode.countdownSeconds) {
+      countdownSeconds = forkNode.countdownSeconds;
+      console.log(`Using fork-specific countdown: ${countdownSeconds}s for ${forkId}`);
+    }
+  }
+
+  let remaining = countdownSeconds;
   const interval = setInterval(() => {
     remaining -= 1;
     broadcast({ type: "voteTick", payload: { forkId, remainingSeconds: remaining } });
@@ -199,11 +227,32 @@ wss.on("connection", (ws) => {
 
 // Wire internal events to WS
 serverEventBus.on("stateChanged", (payload) => {
+  console.log('📡 Broadcasting stateChanged to WebSocket clients:', payload);
+  console.log('📡 Current graph snapshot has states:', snapshot.graph?.states?.length || 0);
+
+  // Verify the node exists in the graph snapshot before broadcasting
+  const nodeExists = snapshot.graph?.states?.some((state: any) => state.id === payload.id);
+  if (!nodeExists) {
+    console.log('⚠️ WARNING: Broadcasting state change for node that doesn\'t exist in graph snapshot!');
+    console.log('⚠️ Available nodes in snapshot:', snapshot.graph?.states?.map((s: any) => s.id) || []);
+  } else {
+    console.log('✅ Node exists in graph snapshot, safe to broadcast');
+  }
+
   snapshot.activeState = payload; // keep REST snapshot in sync
+  broadcast({ type: "stateChanged", payload }); // broadcast to all WebSocket clients
+  console.log('📡 WebSocket broadcast completed');
 });
+
+serverEventBus.on("showLoaded", (payload) => {
+  console.log('📡 Broadcasting showLoaded to WebSocket clients:', payload);
+  broadcast({ type: "showLoaded", payload });
+});
+
 serverEventBus.on("validationError", (payload) => broadcast({ type: "validationError", payload }));
 
 // Start server
 server.listen(Number(env.SERVER_PORT), "0.0.0.0", () => {
   console.log(`Conductor server listening on :${env.SERVER_PORT}`);
+  console.log(`📊 Show data persistence: ${env.DATA_DIR}/db/current`);
 });

@@ -198,6 +198,25 @@ export class FileOperations {
         }))
       }));
 
+      // Convert states array to nodes object (Conductor expects nodes as object, not states array)
+      const exportNodes: Record<string, any> = {};
+      exportStates.forEach(state => {
+        // Fix connections array to contain target node IDs instead of connection IDs
+        const targetNodeIds: string[] = [];
+        
+        // Find all connections from this node and extract their target node IDs
+        const outgoingConnections = projectData.connections.filter(conn => conn.fromNodeId === state.id);
+        outgoingConnections.forEach(conn => {
+          targetNodeIds.push(conn.toNodeId);
+        });
+
+        // Create the node with target node IDs in connections array
+        exportNodes[state.id] = {
+          ...state,
+          connections: targetNodeIds
+        };
+      });
+
       // Single comprehensive JSON export
       const exportData = {
         // Project metadata
@@ -209,11 +228,16 @@ export class FileOperations {
           initialStateId: projectData.show.initialStateId
         },
 
-        // All project data in one file
-        states: exportStates,
+        // Add metadata at top level for Conductor compatibility
+        metadata: {
+          ...projectData.metadata,
+          initialStateId: projectData.show.initialStateId
+        },
+
+        // Use nodes object format (not states array) for Conductor compatibility
+        nodes: exportNodes,
         connections: projectData.connections,
         outputs: projectData.outputs,
-        metadata: projectData.metadata,
 
         // Export information
         exportedAt: new Date().toISOString(),
