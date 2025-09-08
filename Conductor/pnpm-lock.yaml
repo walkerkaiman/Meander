@@ -18,6 +18,9 @@ importers:
         specifier: ^10.3.17
         version: 10.3.17(react-dom@18.2.0)(react@18.2.0)
     devDependencies:
+      '@playwright/test':
+        specifier: ^1.40.0
+        version: 1.40.0
       concurrently:
         specifier: ^8.2.0
         version: 8.2.0
@@ -867,6 +870,15 @@ packages:
     requiresBuild: true
     dev: true
     optional: true
+
+  /@playwright/test@1.40.0:
+    resolution: {integrity: sha512-PdW+kn4eV99iP5gxWNSDQCbhMaDVej+RXL5xr6t04nbKLCBwYtA046t7ofoczHOm8u6c+45hpDKQVZqtqwkeQg==}
+    engines: {node: '>=16'}
+    deprecated: Please update to the latest version of Playwright to test up-to-date browsers.
+    hasBin: true
+    dependencies:
+      playwright: 1.40.0
+    dev: true
 
   /@radix-ui/number@1.0.0:
     resolution: {integrity: sha512-Ofwh/1HX69ZfJRiRBMTy7rgjAzHmwe4kW9C9Y99HTRUcYLUuVT0KESFj15rPjRgKJs20GPq8Bm5aEDJ8DuA3vA==}
@@ -2196,6 +2208,14 @@ packages:
     resolution: {integrity: sha512-OO0pH2lK6a0hZnAdau5ItzHPI6pUlvI7jMVnxUQRtw4owF2wk8lOSabtGDCTP4Ggrg2MbGnWO9X8K1t4+fGMDw==}
     dev: true
 
+  /fsevents@2.3.2:
+    resolution: {integrity: sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA==}
+    engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
+    os: [darwin]
+    requiresBuild: true
+    dev: true
+    optional: true
+
   /fsevents@2.3.3:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
@@ -2832,6 +2852,22 @@ packages:
   /pirates@4.0.7:
     resolution: {integrity: sha512-TfySrs/5nm8fQJDcBDuUng3VOUKsd7S+zqvbOTiGXHfxX4wK31ard+hoNuvkicM/2YFzlpDgABOevKSsB4G/FA==}
     engines: {node: '>= 6'}
+    dev: true
+
+  /playwright-core@1.40.0:
+    resolution: {integrity: sha512-fvKewVJpGeca8t0ipM56jkVSU6Eo0RmFvQ/MaCQNDYm+sdvKkMBBWTE1FdeMqIdumRaXXjZChWHvIzCGM/tA/Q==}
+    engines: {node: '>=16'}
+    hasBin: true
+    dev: true
+
+  /playwright@1.40.0:
+    resolution: {integrity: sha512-gyHAgQjiDf1m34Xpwzaqb76KgfzYrhK7iih+2IzcOCoZWr/8ZqmdBw+t0RU85ZmfJMgtgAiNtBQ/KS2325INXw==}
+    engines: {node: '>=16'}
+    hasBin: true
+    dependencies:
+      playwright-core: 1.40.0
+    optionalDependencies:
+      fsevents: 2.3.2
     dev: true
 
   /postcss-load-config@4.0.2:
