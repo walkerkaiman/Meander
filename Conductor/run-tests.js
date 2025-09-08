@@ -23,11 +23,14 @@ if (!hasPackageJson) {
 try {
   // Install Playwright browsers if needed
   console.log('📦 Installing Playwright browsers...');
-  execSync('npx playwright install --yes', { stdio: 'inherit' });
+  execSync('npx playwright install', { stdio: 'inherit' });
 
   // Run the tests
   console.log('\n🧪 Running E2E tests...');
-  console.log('This will start the MEANDER server and run tests against it.\n');
+  console.log('✅ Playwright will automatically start both servers:');
+  console.log('   - Conductor Server (port 4000)');
+  console.log('   - Conductor Client (port 5173)');
+  console.log('⏳ This may take up to 2 minutes...\n');
 
   execSync('npm run test:e2e:all', {
     stdio: 'inherit',
@@ -37,9 +40,12 @@ try {
 } catch (error) {
   console.error('\n❌ Test run failed:', error.message);
   console.log('\n💡 Troubleshooting:');
-  console.log('1. Make sure the MEANDER server is not already running on ports 4000/5173');
-  console.log('2. Try running: npm run conductor (in another terminal)');
-  console.log('3. Then run tests in a separate terminal');
+  console.log('1. Make sure ports 4000 and 5173 are free (no other servers running)');
+  console.log('2. If install fails: npm run test:install');
+  console.log('3. Manual server startup:');
+  console.log('   - Terminal 1: npm run conductor:server');
+  console.log('   - Terminal 2: npm run conductor:client');
+  console.log('   - Terminal 3: npm run test:e2e:all');
   console.log('4. For debugging: npm run test:e2e:headed');
 
   process.exit(1);

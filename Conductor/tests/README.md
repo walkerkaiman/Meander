@@ -6,7 +6,7 @@ Comprehensive end-to-end tests for the MEANDER live performance platform.
 
 ### Prerequisites
 - Node.js and npm/pnpm installed
-- MEANDER platform running (`npm run conductor`)
+- Ports 4000 and 5173 available (tests will start servers automatically)
 
 ### Install Dependencies
 ```bash
@@ -15,7 +15,9 @@ pnpm install
 
 ### Run All Tests
 ```bash
-npm run test:e2e
+npm run test:run  # Recommended - starts servers automatically
+# or
+npm run test:e2e:all
 ```
 
 ### Run Specific Test Categories
@@ -28,6 +30,30 @@ npx playwright test audience*.spec.ts
 
 # Mobile tests only
 npx playwright test mobile*.spec.ts
+```
+
+## 🔄 Automatic Server Management
+
+**✅ No Manual Server Startup Required!**
+
+The test suite automatically:
+- Starts the Conductor Server (port 4000)
+- Starts the Conductor Client (port 5173)
+- Waits for both servers to be ready
+- Runs tests against the running servers
+- Cleans up servers after tests complete
+
+### Manual Server Control (Advanced)
+If you prefer to start servers manually:
+```bash
+# Terminal 1: Start server
+npm run conductor:server
+
+# Terminal 2: Start client
+npm run conductor:client
+
+# Terminal 3: Run tests
+npm run test:e2e:all
 ```
 
 ### Interactive Test Development

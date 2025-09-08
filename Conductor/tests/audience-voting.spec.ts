@@ -7,7 +7,7 @@ import { test, expect } from '@playwright/test';
 test.describe('Audience Page - Voting Interactions', () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to audience page
-    await page.goto('http://localhost:4000/audience-page');
+    await page.goto('/audience-page');
   });
 
   test('should load audience interface', async ({ page }) => {

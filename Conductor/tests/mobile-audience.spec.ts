@@ -1,18 +1,16 @@
-import { test, expect, devices } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 
 /**
  * Mobile Audience Tests
  * Tests audience experience on mobile devices with touch interactions
  */
 test.describe('Mobile Audience Experience', () => {
-  // Use iPhone 12 device configuration
-  test.use({ ...devices['iPhone 12'] });
 
   test('mobile audience voting experience', async ({ page }) => {
     console.log('📱 Testing mobile audience experience...');
 
     // Navigate to audience page
-    await page.goto('http://localhost:4000/audience-page');
+    await page.goto('/audience-page');
     await page.waitForLoadState('networkidle');
 
     // Wait for mobile-optimized layout

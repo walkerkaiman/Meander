@@ -17,9 +17,6 @@ export default defineConfig({
   reporter: 'html',
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
-    /* Base URL to use in actions like `await page.goto('/')`. */
-    baseURL: 'http://localhost:4000',
-
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
 
@@ -35,25 +32,42 @@ export default defineConfig({
     {
       name: 'conductor-e2e',
       testMatch: '**/conductor*.spec.ts',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        ...devices['Desktop Chrome'],
+        baseURL: 'http://localhost:5173', // Conductor client
+      },
     },
     {
       name: 'audience-e2e',
       testMatch: '**/audience*.spec.ts',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        ...devices['Desktop Chrome'],
+        baseURL: 'http://localhost:4000', // Conductor server (audience page)
+      },
     },
     {
       name: 'mobile-audience-e2e',
       testMatch: '**/mobile-audience*.spec.ts',
-      use: { ...devices['iPhone 12'] },
+      use: {
+        ...devices['iPhone 12'],
+        baseURL: 'http://localhost:4000', // Conductor server (audience page)
+      },
     },
   ],
 
-  /* Run your local dev server before starting the tests */
-  webServer: {
-    command: 'npm run conductor',
-    port: 5173,
-    reuseExistingServer: !process.env.CI,
-    timeout: 120 * 1000,
-  },
+  /* Run your local dev servers before starting the tests */
+  webServer: [
+    {
+      command: 'npm run conductor:server',
+      port: 4000,
+      reuseExistingServer: !process.env.CI,
+      timeout: 60 * 1000,
+    },
+    {
+      command: 'npm run conductor:client',
+      port: 5173,
+      reuseExistingServer: !process.env.CI,
+      timeout: 60 * 1000,
+    },
+  ],
 });

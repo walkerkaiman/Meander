@@ -7,7 +7,7 @@ import { test, expect } from '@playwright/test';
 test.describe('Conductor UI - Basic Functionality', () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to conductor UI
-    await page.goto('http://localhost:5173');
+    await page.goto('/');
   });
 
   test('should load conductor interface', async ({ page }) => {

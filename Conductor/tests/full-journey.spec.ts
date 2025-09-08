@@ -18,7 +18,7 @@ test.describe('Full User Journey - End-to-End', () => {
       console.log('🚀 Starting conductor setup...');
 
       // Navigate to conductor
-      await conductorPage.goto('http://localhost:5173');
+      await conductorPage.goto('/');
       await expect(conductorPage.locator('text=MEANDER Conductor')).toBeVisible();
 
       // Verify interface is ready
@@ -29,7 +29,7 @@ test.describe('Full User Journey - End-to-End', () => {
       console.log('👥 Setting up audience connection...');
 
       // Navigate to audience page
-      await audiencePage.goto('http://localhost:4000/audience-page');
+      await audiencePage.goto('/audience-page');
       await audiencePage.waitForLoadState('networkidle');
 
       // Wait for WebSocket connection and initial state

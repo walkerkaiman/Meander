@@ -7,7 +7,7 @@ import path from 'path';
  */
 test.describe('Conductor UI - Show Management', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('http://localhost:5173');
+    await page.goto('/');
   });
 
   test('should upload and load a show file', async ({ page }) => {
