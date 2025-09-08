@@ -33,9 +33,29 @@ const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 const sequencer = new Sequencer(env.DATA_DIR);
 
-// Middlewares
-app.use(helmet());
-app.use(cors({ origin: true }));
+// Middlewares - Configure Helmet for local development
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Allow inline scripts for local dev
+      styleSrc: ["'self'", "'unsafe-inline'"], // Allow inline styles
+      imgSrc: ["'self'", "data:", "blob:", "*"], // Allow all image sources for local development
+      connectSrc: ["'self'", "ws:", "wss:"], // Allow WebSocket connections
+      fontSrc: ["'self'", "data:"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'", "*"], // Allow all media sources for local development
+      frameSrc: ["'none'"],
+    },
+  },
+  crossOriginEmbedderPolicy: false, // Disable for local development
+}));
+app.use(cors({ 
+  origin: true,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json({ limit: "10mb" }));
 app.use("/audience", audienceRouter);
 
@@ -48,6 +68,14 @@ const projectAssetsDir = path.join(projectDir, "assets");
 
 // Ensure directories exist and mount static handler
 fs.mkdirSync(projectAssetsDir, { recursive: true });
+// Handle OPTIONS requests for media endpoint
+app.options('/media/*', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.status(200).end();
+});
+
 app.use(
   "/media",
   express.static(projectAssetsDir, {
@@ -55,12 +83,47 @@ app.use(
     maxAge: 0,
     cacheControl: false,
     setHeaders(res) {
-      res.setHeader('Cross-Origin-Resource-Policy', 'same-site');
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     },
   })
 );
 
-// Audience UI static files
+// Serve built audience page directly from Conductor server with permissive CSP
+const audiencePagePath = path.join(__dirname, '../../audience-page/dist');
+app.use('/audience-page', express.static(audiencePagePath, {
+  setHeaders: (res, path) => {
+    // More permissive CSP for audience page
+    res.setHeader('Content-Security-Policy', 
+      "default-src 'self'; " +
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' *; " +
+      "style-src 'self' 'unsafe-inline' *; " +
+      "img-src 'self' data: blob: *; " +
+      "connect-src 'self' ws: wss: *; " +
+      "font-src 'self' data: *; " +
+      "object-src 'none'; " +
+      "media-src 'self' *; " +
+      "frame-src 'none';"
+    );
+    res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
+    res.setHeader('Cross-Origin-Opener-Policy', 'unsafe-none');
+  }
+}));
+
+// Redirect root audience route to the built page
+app.get('/audience', (req, res) => {
+  res.redirect('/audience-page/');
+});
+
+// Redirect conductor route to the conductor UI
+app.get('/conductor', (req, res) => {
+  // Always redirect to localhost since conductor UI is typically used locally
+  res.redirect('http://localhost:5173/');
+});
+
+// Legacy audience UI route (for backwards compatibility)
 app.use('/audience-ui', express.static(path.join(__dirname, '../public')));
 
 // ------------------ Upload Show Package ------------------
@@ -148,6 +211,27 @@ app.post("/advance", (_req, res) => {
   res.status(202).end();
 });
 
+// Reload show endpoint for testing
+app.post("/reload", (_req, res) => {
+  console.log('🔄 RELOAD REQUEST RECEIVED');
+  try {
+    // Re-read the show.json file and reload the show
+    const showFilePath = path.join(PROJECT_ROOT, "CurrentProject", "show.json");
+    if (fs.existsSync(showFilePath)) {
+      const showData = JSON.parse(fs.readFileSync(showFilePath, 'utf8'));
+      sequencer.loadShow(showData);
+      console.log('✅ Show reloaded successfully');
+      res.status(200).json({ success: true, message: 'Show reloaded' });
+    } else {
+      console.log('❌ show.json file not found');
+      res.status(404).json({ error: 'show.json not found' });
+    }
+  } catch (error) {
+    console.error('❌ Failed to reload show:', error);
+    res.status(500).json({ error: 'Failed to reload show' });
+  }
+});
+
 // ----- Voting State -----
 type VoteSession = {
   forkId: string;
@@ -196,10 +280,16 @@ function startVote(forkId: string) {
     broadcast({ type: "voteTick", payload: { forkId, remainingSeconds: remaining } });
     if (remaining <= 0) {
       clearInterval(interval);
-      const winnerIndex: 0 | 1 = Math.random() > 0.5 ? 0 : 1; // placeholder random winner
-      broadcast({ type: "voteResult", payload: { forkId, counts: [0, 0], winnerIndex } });
+      
+      // Tally actual votes instead of random selection
+      const voteResult = sequencer.tallyVotes(forkId);
+      console.log('🗳️ Vote countdown complete. Final result:', voteResult);
+      
+      broadcast({ type: "voteResult", payload: { forkId, counts: voteResult.counts, winnerIndex: voteResult.winnerIndex } });
       activeVote = null;
-      sequencer.manualAdvance(); // move to winner path TODO compute path based on winner
+      
+      // Advance to the path based on the winning choice
+      sequencer.advanceToChoice(forkId, voteResult.winnerIndex);
     }
   }, 1000);
 

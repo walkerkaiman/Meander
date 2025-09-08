@@ -52,7 +52,6 @@ export class VoteManager extends EventEmitter<{
       
       await this.apiManager.submitVote(votePayload);
       
-      console.log('Vote submitted successfully:', votePayload);
       this.emit('vote_submitted', votePayload);
       
     } catch (error) {

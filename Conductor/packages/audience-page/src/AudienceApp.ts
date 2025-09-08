@@ -29,6 +29,8 @@ export class AudienceApp {
   
   // State
   private currentComponent: 'loading' | 'error' | 'scene' | 'fork' = 'loading';
+  private pollingInterval: NodeJS.Timeout | null = null;
+  private lastStateId: string | null = null;
 
   constructor(container: HTMLElement, config?: Partial<AudienceConfig>) {
     this.container = container;
@@ -57,7 +59,6 @@ export class AudienceApp {
    * Start the application
    */
   async start(): Promise<void> {
-    console.log('Starting Audience App...');
     
     // Show loading state
     this.showLoading('Connecting to show...');
@@ -69,6 +70,14 @@ export class AudienceApp {
       // Try to get initial state
       await this.loadInitialState();
       
+      // Start polling as fallback after 5 seconds if WebSocket hasn't connected
+      setTimeout(() => {
+        const state = this.stateManager.getState();
+        if (!state.isConnected) {
+          this.startPolling();
+        }
+      }, 5000);
+      
     } catch (error) {
       console.error('Failed to start app:', error);
       this.showError('Connection Failed', 'Unable to connect to the show. Please refresh the page to try again.');
@@ -79,39 +88,65 @@ export class AudienceApp {
    * Stop the application
    */
   stop(): void {
-    console.log('Stopping Audience App...');
     
     this.wsManager.disconnect();
+    this.stopPolling();
     this.cleanup();
+  }
+
+  /**
+   * Start polling for state updates as fallback when WebSocket fails
+   */
+  private startPolling(): void {
+    if (this.pollingInterval) {
+      return; // Already polling
+    }
+    
+    this.pollingInterval = setInterval(async () => {
+      try {
+        const currentState = await this.apiManager.getShowState();
+        if (currentState && currentState.id !== this.lastStateId) {
+          this.lastStateId = currentState.id;
+          this.stateManager.setActiveState(currentState);
+        }
+      } catch (error) {
+        console.warn('Polling error:', error);
+      }
+    }, 2000); // Poll every 2 seconds
+  }
+
+  /**
+   * Stop polling for state updates
+   */
+  private stopPolling(): void {
+    if (this.pollingInterval) {
+      clearInterval(this.pollingInterval);
+      this.pollingInterval = null;
+    }
   }
 
   private async loadInitialState(): Promise<void> {
     try {
-      console.log('📚 Loading initial state...');
-
       // Try to load show graph first
-      console.log('📖 Fetching show graph...');
       try {
         const graph = await this.apiManager.getShowGraph();
-        console.log('📖 Graph loaded:', { nodeCount: graph.states?.length || 0 });
         this.stateManager.setShowGraph(graph);
       } catch (graphError: any) {
         if (graphError.message?.includes('404') || graphError.message?.includes('No show loaded')) {
-          console.log('📖 No show loaded yet, will wait for showLoaded event');
+          // No show loaded yet, will wait for showLoaded event
         } else {
           console.warn('📖 Failed to load graph:', graphError);
         }
       }
 
       // Try to load current state
-      console.log('🎬 Fetching active state...');
       try {
         const activeState = await this.apiManager.getShowState();
-        console.log('🎬 Active state loaded:', activeState);
         this.stateManager.setActiveState(activeState);
+        this.lastStateId = activeState.id; // Track the initial state
       } catch (stateError: any) {
         if (stateError.message?.includes('503') || stateError.message?.includes('No show loaded')) {
-          console.log('🎬 No show loaded yet, will wait for stateChanged events');
+          // No show loaded yet, will wait for stateChanged events
         } else {
           console.warn('🎬 Failed to load active state:', stateError);
         }
@@ -125,22 +160,13 @@ export class AudienceApp {
 
   private async fetchGraphOnShowLoad(): Promise<void> {
     try {
-      console.log('📖 Fetching graph after show load...');
       const graph = await this.apiManager.getShowGraph();
-      console.log('📖 Graph loaded after show load:', { nodeCount: graph.states?.length || 0 });
-      console.log('📖 Graph states:', graph.states?.map((s: any) => ({ id: s.id, connections: s.connections })) || []);
-      console.log('📖 Graph connections:', graph.connections?.map((c: any) => `${c.fromNodeId} -> ${c.toNodeId}`) || []);
-
       this.stateManager.setShowGraph(graph);
-      console.log('📖 Graph set in state manager');
 
       // If we have an active state but no current node, try to update it now that we have the graph
       const state = this.stateManager.getState();
       if (state.activeState && !state.currentNode) {
-        console.log('🔄 Updating current node now that graph is available');
         this.renderCurrentState();
-      } else {
-        console.log('🔄 Graph loaded, but already have current node or no active state');
       }
     } catch (error) {
       console.error('❌ Failed to fetch graph after show load:', error);
@@ -150,14 +176,15 @@ export class AudienceApp {
   private setupEventListeners(): void {
     // WebSocket events
     this.wsManager.on('connected', () => {
-      console.log('WebSocket connected');
       this.stateManager.setConnectionStatus(true);
+      // Stop polling when WebSocket is working
+      this.stopPolling();
     });
 
     this.wsManager.on('disconnected', () => {
-      console.log('WebSocket disconnected');
       this.stateManager.setConnectionStatus(false);
-      this.showError('Connection Lost', 'Lost connection to the show. Attempting to reconnect...');
+      // Start polling as fallback when WebSocket fails
+      this.startPolling();
     });
 
     this.wsManager.on('message', (message: ServerMessage) => {
@@ -177,17 +204,14 @@ export class AudienceApp {
     // Listen for graph loaded events to potentially update the display
     this.stateManager.on('event', (event) => {
       if (event.type === 'graph_loaded') {
-        console.log('🎭 Graph loaded, checking if we need to update display');
         const currentState = this.stateManager.getState();
         if (currentState.activeState && !currentState.currentNode) {
-          console.log('🔄 Graph loaded after state, updating display');
           this.renderCurrentState();
         }
       }
     });
 
     this.stateManager.on('event', (event) => {
-      console.log('State event:', event);
 
       switch (event.type) {
         case 'connection_established':
@@ -205,7 +229,7 @@ export class AudienceApp {
 
     // Vote manager events
     this.voteManager.on('vote_submitted', (payload) => {
-      console.log('Vote submitted:', payload);
+      // Vote submitted
     });
 
     this.voteManager.on('vote_failed', (error) => {
@@ -215,22 +239,13 @@ export class AudienceApp {
   }
 
   private handleServerMessage(message: ServerMessage): void {
-    console.log('📨 Received server message:', message);
 
     switch (message.type) {
       case 'stateChanged':
-        const state = this.stateManager.getState();
-        console.log('📊 State before processing:', {
-          hasShowGraph: !!state.showGraph,
-          activeStateId: state.activeState?.id,
-          currentNode: !!state.currentNode
-        });
-
         this.stateManager.setActiveState(message.payload);
         break;
 
       case 'showLoaded':
-        console.log('🎭 Show loaded event received, fetching graph...');
         this.fetchGraphOnShowLoad();
         break;
 
@@ -240,12 +255,10 @@ export class AudienceApp {
 
       case 'voteResult':
         // Reset voting state when results come in
-        console.log('Vote result:', message.payload);
         break;
 
       case 'timerTick':
         // Handle general timer tick if needed
-        console.log('Timer tick:', message.payload);
         break;
 
       case 'validationError':
@@ -259,7 +272,6 @@ export class AudienceApp {
   }
 
   private handleStateChange(state: AudienceState): void {
-    console.log('State changed:', state);
     
     if (!state.isConnected && this.currentComponent !== 'error') {
       this.showError('Connection Lost', 'Lost connection to the show. Attempting to reconnect...');
@@ -277,13 +289,7 @@ export class AudienceApp {
   private renderCurrentState(): void {
     const state = this.stateManager.getState();
 
-    console.log('🎭 Render Current State:', {
-      hasActiveState: !!state.activeState,
-      hasShowGraph: !!state.showGraph,
-      activeStateId: state.activeState?.id,
-      currentNode: state.currentNode,
-      graphNodeCount: state.showGraph ? Object.keys(state.showGraph.nodes || {}).length : 0
-    });
+    // Render current state
 
     if (!state.activeState) {
       this.showLoading('Waiting for show to start...');
@@ -304,16 +310,13 @@ export class AudienceApp {
         return;
       }
 
-      console.log('No currentNode but state exists, waiting for graph update...');
       this.showLoading('Loading show content...');
       return;
     }
 
     if (currentNode.type === 'scene') {
-      console.log('🎬 Showing scene:', currentNode.id, currentNode.title);
       this.showScene(currentNode);
     } else if (currentNode.type === 'fork') {
-      console.log('🎯 Showing fork:', currentNode.id, currentNode.title);
       this.showFork(currentNode, state.countdown, state.selectedChoiceIndex);
     } else {
       console.warn('Unknown node type:', currentNode.type);
@@ -334,16 +337,12 @@ export class AudienceApp {
   }
 
   private showScene(node: any): void {
-    console.log('🎭 showScene called for node:', node.id, node.title);
-
     if (this.currentComponent === 'scene' && this.scene) {
-      console.log('🎭 Updating existing scene with transition');
       // Update existing scene with transition
       this.scene.updateWithTransition(node);
       return;
     }
 
-    console.log('🎭 Creating new Scene component');
     this.cleanup();
     this.currentComponent = 'scene';
 
@@ -353,12 +352,10 @@ export class AudienceApp {
       // Don't show error for media issues, just continue with fallback
     });
 
-    console.log('🎭 Calling scene.render()');
     this.scene.render(node);
   }
 
   private showFork(node: any, countdown: number | null, selectedChoice: number | null): void {
-    console.log('🎯 showFork called - countdown:', countdown, 'selectedChoice:', selectedChoice);
     this.cleanup();
     this.currentComponent = 'fork';
 

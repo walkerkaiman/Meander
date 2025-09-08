@@ -25,7 +25,6 @@ export class Scene extends EventEmitter<{
    * Render scene with media
    */
   render(node: SceneNode): void {
-    console.log('🎬 Scene component rendering node:', node.id, node.title);
 
     // Clear container
     this.container.innerHTML = '';
@@ -33,14 +32,11 @@ export class Scene extends EventEmitter<{
 
     // Get media items from node
     const mediaItems = this.getMediaItems(node);
-    console.log('🎬 Media items found:', mediaItems.length);
 
     if (mediaItems.length > 0) {
-      console.log('🎬 Loading media:', mediaItems[0]);
       // Use first media item as per design document
       this.loadMedia(mediaItems[0]);
     } else {
-      console.log('🎬 No media found, showing fallback');
       // Show fallback black background
       this.renderFallback();
     }
@@ -80,32 +76,51 @@ export class Scene extends EventEmitter<{
   }
 
   private getMediaItems(node: SceneNode): MediaItem[] {
-    console.log('🎬 Getting media items for scene:', node.id, node.title);
 
     // Type guard to check if node has audienceMedia property
     const nodeWithMedia = node as any;
     if (!nodeWithMedia.audienceMedia || !Array.isArray(nodeWithMedia.audienceMedia)) {
-      console.log('🎬 No audienceMedia found for scene:', node.id);
       return [];
     }
 
-    console.log('🎬 Found audienceMedia:', nodeWithMedia.audienceMedia);
 
-    return nodeWithMedia.audienceMedia.map((media: any): MediaItem => ({
-      type: media.type || 'image',
-      url: this.getMediaUrl(media.file),
-      alt: `${node.title} - ${media.type}`
-    }));
+    return nodeWithMedia.audienceMedia.map((media: any): MediaItem => {
+      // Handle both formats: string URLs from sequencer or objects from original data
+      if (typeof media === 'string') {
+        // Media is already a URL string from the sequencer (e.g., "/media/0.jpg")
+        return {
+          type: 'image', // Default to image for string URLs
+          url: `http://${this.config.serverHost}:${this.config.serverPort}${media}`,
+          alt: `${node.title} - media`
+        };
+      } else {
+        // Media is an object with file property (original format)
+        return {
+          type: media.type || 'image',
+          url: this.getMediaUrl(media.file),
+          alt: `${node.title} - ${media.type}`
+        };
+      }
+    });
   }
 
   private getMediaUrl(filePath: string): string {
     // Convert file path to server URL
     const baseUrl = `http://${this.config.serverHost}:${this.config.serverPort}`;
     
-    // Ensure path starts with /
-    const path = filePath.startsWith('/') ? filePath : `/${filePath}`;
+    // Remove "assets/" prefix if present and use /media/ route
+    let cleanPath = filePath;
+    if (cleanPath.startsWith('assets/')) {
+      cleanPath = cleanPath.substring(7); // Remove "assets/" prefix
+    }
+    if (cleanPath.startsWith('/assets/')) {
+      cleanPath = cleanPath.substring(8); // Remove "/assets/" prefix
+    }
     
-    return `${baseUrl}${path}`;
+    // Use /media/ route as that's where Conductor server serves assets
+    const mediaPath = `/media/${cleanPath}`;
+    
+    return `${baseUrl}${mediaPath}`;
   }
 
   private loadMedia(mediaItem: MediaItem): void {

@@ -13,7 +13,7 @@
     "test": "pnpm -r run test",
     "lint": "pnpm -r run lint",
     "start": "pnpm --filter conductor-server start",
-    "conductor": "concurrently \"pnpm --filter conductor-server dev\" \"pnpm --filter conductor-client dev\" \"pnpm --filter audience-page dev\" \"wait-on http://localhost:5173/index.html --verbose && start http://localhost:5173\"",
+    "conductor": "concurrently \"pnpm --filter conductor-server dev\" \"pnpm --filter conductor-client dev\"",
     "conductor:server": "pnpm --filter conductor-server dev",
     "conductor:client": "pnpm --filter conductor-client dev",
     "conductor:audience": "pnpm --filter audience-page dev"

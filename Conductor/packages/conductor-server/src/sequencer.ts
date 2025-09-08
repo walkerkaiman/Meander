@@ -40,6 +40,7 @@ export class Sequencer {
   private heartbeatTimer: NodeJS.Timeout | null = null;
   private show: ShowPackage | null = null;
   private timers = { showStart: null as number | null, sceneStart: null as number | null };
+  private activeVotes: Map<string, Map<string, 0 | 1>> = new Map(); // forkId -> deviceId -> choiceIndex
 
   constructor(private dataDir: string) {
     console.log('🎭 Initializing Sequencer with data directory:', dataDir);
@@ -237,7 +238,12 @@ export class Sequencer {
 
           // Import the snapshot object to ensure we're using the same instance as the routes
           const { snapshot } = require("./routes/audience");
-          snapshot.graph = { states, connections: restoredConnections };
+          snapshot.graph = { 
+            states, 
+            connections: restoredConnections,
+            nodes: this.show.nodes,  // Full node data for audience page
+            metadata: this.show.metadata
+          };
           console.log('✅ Restored graph snapshot with', states.length, 'states and', restoredConnections.length, 'connections');
         }
         console.log('✅ Successfully loaded show data from DB');
@@ -282,7 +288,15 @@ export class Sequencer {
     // reset timers for fresh show
     this.timers.showStart = Date.now();
     this.timers.sceneStart = null;
-    this.current = { id: show.metadata.initialStateId, type: show.nodes[show.metadata.initialStateId].type } as ActiveState;
+    // Handle both possible initial state locations
+    const initialStateId = show.metadata?.initialStateId || show.show?.initialStateId;
+    if (!initialStateId) {
+      throw new Error('No initial state ID found in show data');
+    }
+    if (!show.nodes[initialStateId]) {
+      throw new Error(`Initial state ${initialStateId} not found in nodes`);
+    }
+    this.current = { id: initialStateId, type: show.nodes[initialStateId].type } as ActiveState;
     if (this.current.type === "scene") {
       this.timers.sceneStart = Date.now();
     }
@@ -412,8 +426,14 @@ export class Sequencer {
     console.log('📊 Connections to set:', connections.length, 'connections:', connections.map(c => `${c.fromNodeId} -> ${c.toNodeId}`));
 
     const { snapshot } = require("./routes/audience");
-    snapshot.graph = { states, connections };
-    console.log('📊 Graph snapshot updated in audience routes');
+    // Include both simplified states for conductor-client and full nodes for audience-page
+    snapshot.graph = { 
+      states, 
+      connections,
+      nodes: show.nodes,  // Full node data for audience page
+      metadata: show.metadata
+    };
+    console.log('📊 Graph snapshot updated in audience routes with full node data');
 
     this.persist();
     // Persist the show data
@@ -639,7 +659,108 @@ export class Sequencer {
     }
   }
 
-  private onVote(_payload: VotePayload) {
-    // TODO implement vote tally logic
+  private onVote(payload: VotePayload) {
+    console.log('🗳️ Vote received:', payload);
+    
+    // Initialize vote tracking for this fork if not exists
+    if (!this.activeVotes.has(payload.forkId)) {
+      this.activeVotes.set(payload.forkId, new Map());
+    }
+    
+    const forkVotes = this.activeVotes.get(payload.forkId)!;
+    
+    // Store the vote (deviceId -> choiceIndex)
+    forkVotes.set(payload.deviceId, payload.choiceIndex);
+    
+    console.log('🗳️ Vote stored. Current votes for fork', payload.forkId, ':', 
+      Array.from(forkVotes.entries()).map(([deviceId, choice]) => ({ deviceId, choice })));
+  }
+
+  /**
+   * Tally votes for a fork and determine the winner
+   */
+  public tallyVotes(forkId: string): { counts: [number, number], winnerIndex: 0 | 1 } {
+    const forkVotes = this.activeVotes.get(forkId);
+    
+    if (!forkVotes || forkVotes.size === 0) {
+      console.log('🗳️ No votes found for fork', forkId, '- defaulting to choice 0');
+      return { counts: [0, 0], winnerIndex: 0 };
+    }
+    
+    // Count votes for each choice
+    let choice0Count = 0;
+    let choice1Count = 0;
+    
+    for (const choice of forkVotes.values()) {
+      if (choice === 0) {
+        choice0Count++;
+      } else {
+        choice1Count++;
+      }
+    }
+    
+    const counts: [number, number] = [choice0Count, choice1Count];
+    const winnerIndex: 0 | 1 = choice0Count >= choice1Count ? 0 : 1;
+    
+    console.log('🗳️ Vote tally for fork', forkId, ':', {
+      totalVotes: forkVotes.size,
+      choice0Votes: choice0Count,
+      choice1Votes: choice1Count,
+      winner: winnerIndex
+    });
+    
+    // Clear votes for this fork after tallying
+    this.activeVotes.delete(forkId);
+    
+    return { counts, winnerIndex };
+  }
+
+  /**
+   * Advance to the next state based on the winning choice
+   */
+  public advanceToChoice(forkId: string, winningChoiceIndex: 0 | 1): void {
+    console.log('🎯 Advancing to choice', winningChoiceIndex, 'for fork', forkId);
+    
+    if (!this.show || !this.current || this.current.id !== forkId) {
+      console.error('❌ Cannot advance: invalid state or fork ID mismatch');
+      return;
+    }
+    
+    // Handle both old format (states array) and new format (nodes object)
+    let forkNode: any;
+    if (this.show.nodes && this.show.nodes[forkId]) {
+      // New format
+      forkNode = this.show.nodes[forkId];
+      console.log('🎯 Found fork node in new format (nodes)');
+    } else if (this.show.states) {
+      // Old format
+      forkNode = this.show.states.find((s: any) => s.id === forkId);
+      console.log('🎯 Found fork node in old format (states)');
+    }
+    
+    if (!forkNode || forkNode.type !== 'fork') {
+      console.error('❌ Cannot advance: node is not a fork or not found');
+      console.error('❌ Fork node:', forkNode);
+      console.error('❌ Available nodes:', this.show.nodes ? Object.keys(this.show.nodes) : this.show.states?.map((s: any) => s.id));
+      return;
+    }
+    
+    const choices = (forkNode as any).choices;
+    if (!choices || !choices[winningChoiceIndex]) {
+      console.error('❌ Cannot advance: invalid choice index', winningChoiceIndex);
+      console.error('❌ Available choices:', choices);
+      return;
+    }
+    
+    const nextStateId = choices[winningChoiceIndex].nextStateId;
+    console.log('🎯 Advancing from fork', forkId, 'to state', nextStateId, 'based on choice', winningChoiceIndex);
+    console.log('🎯 Choice details:', {
+      choiceIndex: winningChoiceIndex,
+      choiceLabel: choices[winningChoiceIndex].label,
+      nextStateId: nextStateId
+    });
+    
+    // Advance to the next state
+    this.advance(nextStateId);
   }
 }

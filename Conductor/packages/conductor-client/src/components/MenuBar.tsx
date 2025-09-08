@@ -25,7 +25,7 @@ const MenuBar: React.FC = () => {
 
         console.log('🔄 Attempting to upload file:', file.name, 'Size:', file.size);
         console.log('🔗 Current location:', location.hostname, location.port, location.protocol);
-        const uploadUrl = `http://localhost:4000/upload`;
+        const uploadUrl = `http://${location.hostname}:4000/upload`;
         console.log('🔗 Upload URL:', uploadUrl);
 
         const res = await fetch(uploadUrl, {
@@ -42,7 +42,7 @@ const MenuBar: React.FC = () => {
         }
 
         // Fetch the graph the server just loaded
-        const graphRes = await fetch(`http://localhost:4000/audience/graph`);
+        const graphRes = await fetch(`http://${location.hostname}:4000/audience/graph`);
         if (graphRes.ok) {
           const graph = await graphRes.json();
           console.log('📊 Graph received from server:', {

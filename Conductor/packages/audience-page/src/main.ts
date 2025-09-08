@@ -7,7 +7,6 @@ import { AudienceApp } from './AudienceApp';
  * Application entry point
  */
 async function main() {
-  console.log('MEANDER Audience Page - Starting...');
 
   // Get app container
   const container = document.getElementById('app');
@@ -26,7 +25,6 @@ async function main() {
 
   try {
     await app.start();
-    console.log('Audience App started successfully');
   } catch (error) {
     console.error('Failed to start Audience App:', error);
   }
@@ -34,15 +32,14 @@ async function main() {
   // Handle page visibility changes
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
-      console.log('Page hidden - maintaining connection');
+      // Page hidden - maintaining connection
     } else {
-      console.log('Page visible - ensuring connection');
+      // Page visible - ensuring connection
     }
   });
 
   // Handle window beforeunload
   window.addEventListener('beforeunload', () => {
-    console.log('Page unloading - cleaning up');
     app.stop();
   });
 
@@ -54,7 +51,6 @@ async function main() {
   
   window.addEventListener('focus', () => {
     if (wasBlurred) {
-      console.log('Window regained focus - checking connection');
       wasBlurred = false;
       // App will handle reconnection automatically via WebSocket manager
     }

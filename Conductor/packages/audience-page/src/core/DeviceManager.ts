@@ -26,7 +26,19 @@ export class DeviceManager {
       return storedId;
     }
 
-    const newId = crypto.randomUUID();
+    // Generate a UUID with fallback for older browsers
+    let newId: string;
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      newId = crypto.randomUUID();
+    } else {
+      // Fallback UUID generation for older browsers
+      newId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+    }
+    
     localStorage.setItem('meander_device_id', newId);
     return newId;
   }

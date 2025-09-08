@@ -29,7 +29,6 @@ export class Fork extends EventEmitter<{
    * Render fork with choices and timer
    */
   render(node: ForkNode, countdown: number | null = null, isVoting: boolean = false): void {
-    console.log('🎯 Fork render - countdown:', countdown, 'isVoting:', isVoting);
 
     this.container.innerHTML = '';
     this.container.className = 'fork';
@@ -78,7 +77,6 @@ export class Fork extends EventEmitter<{
    * Update voting state
    */
   updateVotingState(isVoting: boolean): void {
-    console.log('🗳️ Fork updateVotingState:', isVoting);
     this.isVoting = isVoting;
     this.updateChoiceStyles();
   }

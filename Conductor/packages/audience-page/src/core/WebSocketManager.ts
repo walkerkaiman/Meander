@@ -85,13 +85,11 @@ export class WebSocketManager extends EventEmitter<{
     if (!this.ws) return;
 
     this.ws.onopen = () => {
-      console.log('WebSocket connected');
       this.reconnectAttempts = 0;
       this.emit('connected');
     };
 
     this.ws.onclose = (event) => {
-      console.log('WebSocket disconnected:', event.code, event.reason);
       this.emit('disconnected');
       
       if (!this.isIntentionallyDisconnected) {
@@ -108,7 +106,6 @@ export class WebSocketManager extends EventEmitter<{
     this.ws.onmessage = (event) => {
       try {
         const message: ServerMessage = JSON.parse(event.data);
-        console.log('Received WebSocket message:', message);
         this.emit('message', message);
       } catch (error) {
         console.error('Failed to parse WebSocket message:', error);
@@ -124,8 +121,6 @@ export class WebSocketManager extends EventEmitter<{
 
     this.reconnectAttempts++;
     const delay = this.reconnectInterval * Math.pow(2, this.reconnectAttempts - 1); // Exponential backoff
-    
-    console.log(`Scheduling reconnect attempt ${this.reconnectAttempts} in ${delay}ms`);
     
     setTimeout(() => {
       if (!this.isIntentionallyDisconnected) {

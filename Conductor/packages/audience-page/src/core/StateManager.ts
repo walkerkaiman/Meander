@@ -78,16 +78,9 @@ export class StateManager extends EventEmitter<Record<string, AudienceEvent>> {
    * Set the show graph
    */
   setShowGraph(graph: ShowPackage): void {
-    console.log('📊 Setting show graph:', {
-      nodeCount: graph.nodes ? Object.keys(graph.nodes).length : 0,
-      initialStateId: graph.metadata?.initialStateId,
-      hasStates: !!graph.states,
-      graphKeys: Object.keys(graph)
-    });
 
     // Handle both old format (states array) and new format (nodes object)
     if (graph.states && !graph.nodes) {
-      console.log('🔄 Converting legacy format to new format');
       const nodes: Record<string, any> = {};
       for (const state of graph.states) {
         nodes[state.id] = { ...state };
@@ -175,12 +168,6 @@ export class StateManager extends EventEmitter<Record<string, AudienceEvent>> {
    * Update current node based on active state and graph
    */
   private updateCurrentNode(): void {
-    console.log('🔄 updateCurrentNode called:', {
-      hasActiveState: !!this.state.activeState,
-      hasShowGraph: !!this.state.showGraph,
-      activeStateId: this.state.activeState?.id,
-      graphNodeCount: this.state.showGraph ? Object.keys(this.state.showGraph.nodes || {}).length : 0
-    });
 
     if (!this.state.activeState || !this.state.showGraph) {
       this.state.currentNode = null;
@@ -197,7 +184,6 @@ export class StateManager extends EventEmitter<Record<string, AudienceEvent>> {
     }
 
     this.state.currentNode = this.state.showGraph.nodes[nodeId];
-    console.log('✅ Current node updated:', this.state.currentNode);
   }
 
   /**
