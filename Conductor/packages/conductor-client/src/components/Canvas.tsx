@@ -19,9 +19,13 @@ const Canvas: React.FC = () => {
   // Debug logging for Canvas state changes
   React.useEffect(() => {
     console.log('🎨 Canvas received activeState update:', activeState);
-  }, [activeState]);
+    console.log('🎨 Canvas showData states:', showData?.states?.length || 0);
+    // Force a re-render by updating counter
+    setUpdateCounter(prev => prev + 1);
+  }, [activeState, showData]);
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
+  const [updateCounter, setUpdateCounter] = useState(0);
 
   if (!showData) {
     return <div className="canvas">No show data loaded</div>;
@@ -41,7 +45,7 @@ const Canvas: React.FC = () => {
     const isCurrent = state.id === activeState?.id;
     console.log(`🔍 Node ${state.id} isCurrent: ${isCurrent} (activeState: ${activeState?.id})`);
 
-    return {
+    const nodeData = {
       id: state.id,
       type: state.type === 'fork' ? 'forkNode' : 'sceneNode',
       data: {
@@ -56,8 +60,11 @@ const Canvas: React.FC = () => {
       draggable: false,
       selectable: false,
       // Force re-render by including activeState in key
-      key: `${state.id}-${activeState?.id || 'none'}`
+      key: `${state.id}-${activeState?.id || 'none'}-${updateCounter}`
     };
+
+    console.log(`🎨 Node ${state.id} data.isCurrent:`, nodeData.data.isCurrent);
+    return nodeData;
   });
 
   // Ensure connections array exists
@@ -123,14 +130,20 @@ const Canvas: React.FC = () => {
   useEffect(() => {
     if (reactFlowInstance && nodes.length > 0) {
       console.log('🎯 useEffect triggered - updating React Flow nodes');
+      console.log('🎯 Current activeState:', activeState?.id, 'nodes length:', nodes.length);
+
       // Force update the nodes in React Flow
       reactFlowInstance.setNodes(nodes);
+
+      // Also force update the edges to ensure visual state is consistent
+      reactFlowInstance.setEdges(edges);
+
       // Fit view to show all nodes
       setTimeout(() => {
         reactFlowInstance.fitView({ nodes: nodes, duration: 500 });
       }, 100);
     }
-  }, [reactFlowInstance, activeState, nodes]);
+  }, [reactFlowInstance, activeState, nodes, edges, updateCounter]);
 
   // ======== DEBUGGING HOOKS ========
   // debug logging removed
@@ -163,6 +176,7 @@ const Canvas: React.FC = () => {
   return (
     <div className="canvas" ref={reactFlowWrapper} style={{ width: '100%', height: '100%' }}>
       <ReactFlow
+        key={`reactflow-${activeState?.id || 'none'}-${updateCounter}`}
         nodes={nodes}
         edges={edges}
         onInit={onLoad}

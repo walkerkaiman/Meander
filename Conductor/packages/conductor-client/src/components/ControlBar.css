@@ -47,6 +47,28 @@
   transform: translateY(-1px);
 }
 
+/* Countdown timer styling */
+.control-btn-advance.countdown-active {
+  background: #f59e0b;
+  color: #1f2937;
+  font-weight: 600;
+  font-size: 18px;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.control-btn-advance.countdown-active:hover:not(:disabled) {
+  background: #d97706;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
 .control-info {
   font-size: 1rem;
   font-weight: 500;

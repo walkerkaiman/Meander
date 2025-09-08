@@ -46,6 +46,7 @@ export class VoteManager extends EventEmitter<{
       deviceId: state.deviceId
     };
 
+
     try {
       // Mark as submitted immediately to prevent double submission
       this.stateManager.markVoteSubmitted();

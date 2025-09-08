@@ -9,7 +9,7 @@ const ControlBar: React.FC = () => {
   const engineAdvance = useConductorEngine((s)=>s.advance);
   const engineStartVote = useConductorEngine((s)=>s.startVote);
   const localAdvance = useShowStore((s)=>s.advanceState);
-  const { showSeconds, sceneSeconds } = useConductorEngine();
+  const { showSeconds, sceneSeconds, countdown, isVoting } = useConductorEngine();
   const fmt = (s:number)=> new Date(s*1000).toISOString().substr(11,8);
 
   return (
@@ -18,7 +18,7 @@ const ControlBar: React.FC = () => {
         <span style={{marginLeft:'1rem'}}>Scene {fmt(sceneSeconds)}</span>
       </div>
       <button
-        className="control-btn control-btn-advance"
+        className={`control-btn control-btn-advance ${isVoting && countdown !== null ? 'countdown-active' : ''}`}
         onClick={() => {
           if (activeState?.type === "fork") {
             // For forks, just start the vote (don't do optimistic advance)
@@ -33,7 +33,11 @@ const ControlBar: React.FC = () => {
         }}
         disabled={!canAdvance}
       >
-        {activeState?.type === "fork" ? "Start Vote" : "Advance"}
+        {isVoting && countdown !== null
+          ? `${countdown}s`
+          : activeState?.type === "fork"
+            ? "Start Vote"
+            : "Advance"}
       </button>
     </div>
   );

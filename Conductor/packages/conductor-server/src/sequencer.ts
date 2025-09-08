@@ -661,18 +661,18 @@ export class Sequencer {
 
   private onVote(payload: VotePayload) {
     console.log('🗳️ Vote received:', payload);
-    
+
     // Initialize vote tracking for this fork if not exists
     if (!this.activeVotes.has(payload.forkId)) {
       this.activeVotes.set(payload.forkId, new Map());
     }
-    
+
     const forkVotes = this.activeVotes.get(payload.forkId)!;
-    
+
     // Store the vote (deviceId -> choiceIndex)
     forkVotes.set(payload.deviceId, payload.choiceIndex);
-    
-    console.log('🗳️ Vote stored. Current votes for fork', payload.forkId, ':', 
+
+    console.log('🗳️ Vote stored. Current votes for fork', payload.forkId, ':',
       Array.from(forkVotes.entries()).map(([deviceId, choice]) => ({ deviceId, choice })));
   }
 
@@ -681,37 +681,39 @@ export class Sequencer {
    */
   public tallyVotes(forkId: string): { counts: [number, number], winnerIndex: 0 | 1 } {
     const forkVotes = this.activeVotes.get(forkId);
-    
+
     if (!forkVotes || forkVotes.size === 0) {
       console.log('🗳️ No votes found for fork', forkId, '- defaulting to choice 0');
       return { counts: [0, 0], winnerIndex: 0 };
     }
-    
+
     // Count votes for each choice
     let choice0Count = 0;
     let choice1Count = 0;
-    
-    for (const choice of forkVotes.values()) {
+
+    for (const [deviceId, choice] of forkVotes.entries()) {
       if (choice === 0) {
         choice0Count++;
-      } else {
+      } else if (choice === 1) {
         choice1Count++;
+      } else {
+        console.log('🗳️ ERROR: Invalid choice index:', choice, 'from device:', deviceId);
       }
     }
-    
+
     const counts: [number, number] = [choice0Count, choice1Count];
     const winnerIndex: 0 | 1 = choice0Count >= choice1Count ? 0 : 1;
-    
+
     console.log('🗳️ Vote tally for fork', forkId, ':', {
       totalVotes: forkVotes.size,
       choice0Votes: choice0Count,
       choice1Votes: choice1Count,
       winner: winnerIndex
     });
-    
+
     // Clear votes for this fork after tallying
     this.activeVotes.delete(forkId);
-    
+
     return { counts, winnerIndex };
   }
 
@@ -746,12 +748,14 @@ export class Sequencer {
     }
     
     const choices = (forkNode as any).choices;
+
     if (!choices || !choices[winningChoiceIndex]) {
       console.error('❌ Cannot advance: invalid choice index', winningChoiceIndex);
       console.error('❌ Available choices:', choices);
+      console.error('❌ Choices array length:', choices ? choices.length : 'undefined');
       return;
     }
-    
+
     const nextStateId = choices[winningChoiceIndex].nextStateId;
     console.log('🎯 Advancing from fork', forkId, 'to state', nextStateId, 'based on choice', winningChoiceIndex);
     console.log('🎯 Choice details:', {
@@ -762,5 +766,57 @@ export class Sequencer {
     
     // Advance to the next state
     this.advance(nextStateId);
+  }
+
+  /**
+   * Reset to a specific state (used by reset endpoint)
+   */
+  public resetToState(stateId: string): void {
+    console.log('🔄 Resetting to state:', stateId);
+    console.log('🔍 Current sequencer state:', {
+      hasShow: !!this.show,
+      currentState: this.current,
+      showFormat: this.show ? (this.show.nodes ? 'new' : this.show.states ? 'old' : 'unknown') : 'no show'
+    });
+
+    if (!this.show) {
+      console.error('❌ No show data loaded in sequencer');
+      throw new Error('No show data loaded');
+    }
+
+    // Handle both old format (states array) and new format (nodes object)
+    let targetState: any;
+    if (this.show.nodes && this.show.nodes[stateId]) {
+      // New format
+      targetState = this.show.nodes[stateId];
+      console.log('🎯 Found target state in new format (nodes):', targetState);
+    } else if (this.show.states) {
+      // Old format
+      targetState = this.show.states.find((s: any) => s.id === stateId);
+      console.log('🎯 Found target state in old format (states):', targetState);
+    }
+
+    if (!targetState) {
+      console.error('❌ Target state not found:', stateId);
+      console.error('🔍 Available states:', this.show.nodes ? Object.keys(this.show.nodes) : this.show.states?.map((s: any) => s.id));
+      throw new Error(`Target state ${stateId} not found`);
+    }
+
+    // Set the current state to the target state
+    this.current = { id: stateId, type: targetState.type } as ActiveState;
+
+    // Reset timers
+    this.timers.showStart = Date.now();
+    if (this.current.type === "scene") {
+      this.timers.sceneStart = Date.now();
+    }
+
+    // Clear any active votes
+    this.activeVotes.clear();
+
+    // Broadcast the new state change
+    eventBus.emit("stateChanged", this.current);
+
+    console.log('✅ Successfully reset to state:', stateId, 'type:', targetState.type);
   }
 }

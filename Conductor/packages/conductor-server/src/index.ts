@@ -232,6 +232,76 @@ app.post("/reload", (_req, res) => {
   }
 });
 
+// Reset endpoint - sets state to Opening scene
+app.post("/reset", (_req, res) => {
+  console.log('🔄 RESET REQUEST RECEIVED - Setting to Opening scene');
+  try {
+    // Get the initial state ID from the show data
+    const showFilePath = path.join(PROJECT_ROOT, "CurrentProject", "show.json");
+    console.log('🔄 Looking for show.json at:', showFilePath);
+
+    if (fs.existsSync(showFilePath)) {
+      console.log('✅ show.json file exists');
+      let showData;
+      try {
+        const rawData = fs.readFileSync(showFilePath, 'utf8');
+        console.log('✅ Read file successfully, parsing JSON...');
+        showData = JSON.parse(rawData);
+        console.log('✅ JSON parsed successfully');
+      } catch (parseError) {
+        console.error('❌ JSON parse error:', parseError);
+        return res.status(500).json({ error: 'Invalid show.json format' });
+      }
+
+      // Find the initial state ID (Opening scene)
+      let initialStateId = showData.show?.initialStateId;
+      console.log('🔍 initialStateId from show.show:', initialStateId);
+
+      if (!initialStateId && showData.states && showData.states.length > 0) {
+        console.log('🔄 No initialStateId found, looking for first scene...');
+        // Fallback to first scene if no initialStateId
+        const openingScene = showData.states.find((s: any) => s.type === 'scene');
+        if (openingScene) {
+          initialStateId = openingScene.id;
+          console.log('✅ Found opening scene:', initialStateId);
+        } else {
+          console.log('❌ No scene found in states array');
+        }
+      }
+
+      if (initialStateId) {
+        console.log('🎯 Resetting to initial state:', initialStateId);
+        try {
+          sequencer.resetToState(initialStateId);
+          console.log('✅ Reset to Opening scene successful');
+          res.status(200).json({ success: true, message: 'Reset to Opening scene successful' });
+        } catch (resetError) {
+          console.error('❌ Sequencer reset error:', resetError);
+          res.status(500).json({ error: 'Failed to reset sequencer state' });
+        }
+      } else {
+        console.log('❌ No initial state found in show data');
+        console.log('🔍 Show data structure:', {
+          hasShow: !!showData.show,
+          hasStates: !!showData.states,
+          statesCount: showData.states?.length || 0,
+          states: showData.states?.map((s: any) => ({ id: s.id, type: s.type })) || []
+        });
+        res.status(404).json({ error: 'No initial state found' });
+      }
+    } else {
+      console.log('❌ show.json file not found at:', showFilePath);
+      console.log('🔍 Current directory:', process.cwd());
+      console.log('🔍 PROJECT_ROOT:', PROJECT_ROOT);
+      res.status(404).json({ error: 'show.json not found' });
+    }
+  } catch (error) {
+    console.error('❌ Failed to reset show:', error);
+    console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    res.status(500).json({ error: 'Failed to reset show' });
+  }
+});
+
 // ----- Voting State -----
 type VoteSession = {
   forkId: string;
@@ -280,16 +350,21 @@ function startVote(forkId: string) {
     broadcast({ type: "voteTick", payload: { forkId, remainingSeconds: remaining } });
     if (remaining <= 0) {
       clearInterval(interval);
-      
-      // Tally actual votes instead of random selection
-      const voteResult = sequencer.tallyVotes(forkId);
-      console.log('🗳️ Vote countdown complete. Final result:', voteResult);
-      
-      broadcast({ type: "voteResult", payload: { forkId, counts: voteResult.counts, winnerIndex: voteResult.winnerIndex } });
-      activeVote = null;
-      
-      // Advance to the path based on the winning choice
-      sequencer.advanceToChoice(forkId, voteResult.winnerIndex);
+
+      // Add a small buffer delay to allow any pending votes to be processed
+      // This prevents race conditions where votes arrive after countdown finishes
+      console.log('🗳️ Vote countdown finished, waiting 500ms for any pending votes...');
+      setTimeout(() => {
+        // Tally actual votes instead of random selection
+        const voteResult = sequencer.tallyVotes(forkId);
+        console.log('🗳️ Vote countdown complete. Final result:', voteResult);
+
+        broadcast({ type: "voteResult", payload: { forkId, counts: voteResult.counts, winnerIndex: voteResult.winnerIndex } });
+        activeVote = null;
+
+        // Advance to the path based on the winning choice
+        sequencer.advanceToChoice(forkId, voteResult.winnerIndex);
+      }, 500); // 500ms buffer for pending votes
     }
   }, 1000);
 

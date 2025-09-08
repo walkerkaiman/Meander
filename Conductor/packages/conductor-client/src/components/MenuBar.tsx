@@ -69,11 +69,43 @@ const MenuBar: React.FC = () => {
     handleLoadShow();
   };
 
+  const handleReset = async () => {
+    try {
+      console.log('🔄 Resetting to Opening scene...');
+      const resetUrl = `http://${location.hostname}:4000/reset`;
+      console.log('🔗 Reset URL:', resetUrl);
+
+      const res = await fetch(resetUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      console.log('📡 Reset response status:', res.status, res.statusText);
+
+      if (!res.ok) {
+        const msg = await res.text();
+        alert(`Reset failed: ${msg}`);
+        return;
+      }
+
+      console.log('✅ Reset successful');
+      // The server will broadcast the new state, so the UI should update automatically
+    } catch (err) {
+      console.error('❌ Reset error:', err);
+      alert(`Reset error: ${err instanceof Error ? err.message : 'Unknown'}`);
+    }
+  };
+
   return (
     <div className="menu-bar">
       <div className="menu-logo">MEANDER Conductor</div>
       <div style={{color:'#a0a0a0', marginLeft:'1rem'}}>{fmt(showSeconds)}</div>
       <div className="menu-actions">
+        <button className="menu-btn menu-btn-reset" onClick={handleReset}>
+          Reset
+        </button>
         <button className="menu-btn" onClick={triggerFileInput}>
           Load Show
         </button>

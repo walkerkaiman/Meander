@@ -38,6 +38,14 @@
   transform: translateY(-1px);
 }
 
+.menu-btn-reset {
+  background: #dc2626;
+}
+
+.menu-btn-reset:hover {
+  background: #b91c1c;
+}
+
 
 
 
