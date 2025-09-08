@@ -118,3 +118,49 @@
   height: 100%;
   pointer-events: none;
 }
+
+/* Edge/Connection Styling - Matching Editor Style */
+.react-flow__edge {
+  z-index: 5;
+  transition: none;
+  cursor: pointer;
+}
+
+.react-flow__edge:hover {
+  z-index: 10;
+}
+
+.react-flow__edge:hover .react-flow__edge-path {
+  stroke: #ef4444 !important;
+  stroke-width: 3 !important;
+}
+
+.react-flow__edge .react-flow__edge-path {
+  filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.1));
+  transition: none;
+}
+
+/* Bezier edge specific styling */
+.react-flow__edge-bezier .react-flow__edge-path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Arrow marker styling */
+.react-flow__arrowhead {
+  fill: #64748b;
+}
+
+/* Edge labels */
+.react-flow__edge-label {
+  pointer-events: none;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.react-flow__edge-label-bg {
+  fill: rgba(17, 24, 39, 0.8);
+  rx: 4;
+  ry: 4;
+}

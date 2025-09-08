@@ -83,7 +83,7 @@ const Canvas: React.FC = () => {
       return exists;
     })
     .map(conn => {
-      console.log('🔗 Creating edge:', conn.fromNodeId, '->', conn.toNodeId);
+        console.log('🔗 Creating edge:', conn.fromNodeId, '->', conn.toNodeId, 'with React Flow marker');
       // derive label for fork choices if missing
       let label = conn.label || '';
       if (!label) {
@@ -104,13 +104,19 @@ const Canvas: React.FC = () => {
           }
           return 'output';
         })(),
-        type: 'smoothstep',
+        type: 'bezier',
         animated: false,
-        markerEnd: 'url(#arrowhead)',
+        markerEnd: {
+          type: 'arrowclosed',
+          color: '#64748b',
+          width: 20,
+          height: 20,
+        },
         label,
         style: {
           stroke: activeState && conn.fromNodeId === activeState.id ? '#facc15' : '#64748b',
-          strokeWidth: activeState && conn.fromNodeId === activeState.id ? 3 : 2
+          strokeWidth: activeState && conn.fromNodeId === activeState.id ? 3 : 2,
+          filter: 'drop-shadow(0 0 2px rgba(255, 255, 255, 0.1))'
         }
       };
     });
@@ -120,10 +126,7 @@ const Canvas: React.FC = () => {
   const onLoad = useCallback((rfi) => {
     if (!reactFlowInstance) {
       setReactFlowInstance(rfi);
-      // Force fit view after React Flow loads
-      setTimeout(() => {
-        rfi.fitView({ padding: 0.1 });
-      }, 100);
+      // No automatic fitView - let user control zoom/pan manually
     }
   }, [reactFlowInstance]);
 
@@ -138,10 +141,7 @@ const Canvas: React.FC = () => {
       // Also force update the edges to ensure visual state is consistent
       reactFlowInstance.setEdges(edges);
 
-      // Fit view to show all nodes
-      setTimeout(() => {
-        reactFlowInstance.fitView({ nodes: nodes, duration: 500 });
-      }, 100);
+      // No automatic fitView - preserve user's zoom/pan settings
     }
   }, [reactFlowInstance, activeState, nodes, edges, updateCounter]);
 
@@ -154,22 +154,7 @@ const Canvas: React.FC = () => {
   // Inspect viewport after each fitView attempt
   // removed logViewport function and its use
 
-  // === Always fit view once nodes & instance are ready ===
-  useEffect(() => {
-    if (reactFlowInstance && nodes.length) {
-      // using requestAnimationFrame to ensure DOM is ready
-      const id = requestAnimationFrame(() => {
-        try {
-          reactFlowInstance.fitView({ padding: 0.2 });
-          // console.log('[Canvas Debug] fitView called (nodes & instance ready)');
-          // logViewport();
-        } catch (e) {
-          console.warn('fitView failed', e);
-        }
-      });
-      return () => cancelAnimationFrame(id);
-    }
-  }, [reactFlowInstance, nodes.length]);
+  // Node and edge updates handled above - no automatic fitView
 
   // Removed debug outline injection (Conductor is view-only)
 
@@ -180,12 +165,11 @@ const Canvas: React.FC = () => {
         nodes={nodes}
         edges={edges}
         onInit={onLoad}
-        fitView
         attributionPosition="bottom-left"
         panOnScroll={false}
         panOnDrag={[1]}
         zoomOnScroll={true}
-        zoomOnPinch={true}
+        zoomOnPinch={false}
         zoomOnDoubleClick={false}
         nodesDraggable={false}
         nodesConnectable={false}
@@ -194,29 +178,20 @@ const Canvas: React.FC = () => {
         style={{ width: '100%', height: '100%' }}
         minZoom={0.1}
         maxZoom={2}
+        nodesFocusable={false}
+        edgesFocusable={false}
+        autoPanOnNodeDrag={false}
+        autoPanOnConnect={false}
+        selectionOnDrag={false}
+        preventScrolling={true}
+        elevateNodesOnSelect={false}
+        elevateEdgesOnSelect={false}
+        snapToGrid={false}
+        snapGrid={[1, 1]}
+        defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+        fitViewOnInit={false}
       >
-        {/* arrowhead marker defs */}
-        <svg style={{height:0,width:0}}>
-          <defs>
-            <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-              <polygon points="0 0, 10 3.5, 0 7" fill="#64748b" />
-            </marker>
-          </defs>
-        </svg>
         <Background color="#2d2d44" gap={20} />
-        <MiniMap
-          pannable
-          zoomable
-          nodeStrokeColor={(n) => {
-            const t = (n.data as any)?.type || 'scene';
-            return t === 'fork' ? '#facc15' : t === 'scene' ? '#10b981' : '#8b5cf6';
-          }}
-          nodeColor={(n) => {
-            const t = (n.data as any)?.type || 'scene';
-            return t === 'fork' ? '#facc15' : t === 'scene' ? '#10b981' : '#8b5cf6';
-          }}
-          nodeBorderRadius={2}
-        />
         <Controls showInteractive={false} showZoom={false} />
       </ReactFlow>
     </div>
