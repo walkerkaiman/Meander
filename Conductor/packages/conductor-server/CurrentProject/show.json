@@ -3,7 +3,7 @@
     "showName": "Fantasy High",
     "version": "1.0",
     "created": "2025-09-06T01:47:41.320Z",
-    "lastEdited": "2025-09-06T14:57:05.864Z",
+    "lastEdited": "2025-09-09T00:25:46.659Z",
     "initialStateId": "scene_1757123261320"
   },
   "states": [
@@ -58,7 +58,7 @@
           "nextStateId": "node_1757123507022_2vmv5pjie"
         },
         {
-          "label": "Say your Sorry",
+          "label": "Say Your're Sorry",
           "nextStateId": "node_1757123519303_bzg4y95u1"
         }
       ],
@@ -155,7 +155,13 @@
       "title": "Training Montage - Talent Show",
       "description": "Students twirl through enchanted lights, levitating props swirl around, laughter and sparks blend into a magical celebration.",
       "performerText": "\"WEEEE!\"",
-      "audienceMedia": [],
+      "audienceMedia": [
+        {
+          "type": "image",
+          "file": "assets/b368a8448451f4a79af5946d6f799d7f.gif",
+          "size": 1017239
+        }
+      ],
       "outputIds": [],
       "position": {
         "x": 1840,
@@ -171,7 +177,13 @@
       "title": "Training - Basketball",
       "description": "Echoing with clashing practice swords, enchanted weights float midair as students train strength, agility, and spellbound endurance.",
       "performerText": "\"GRRRRR\"",
-      "audienceMedia": [],
+      "audienceMedia": [
+        {
+          "type": "image",
+          "file": "assets/ac9d6bebadd257823d550da9bee13a24.gif",
+          "size": 8487462
+        }
+      ],
       "outputIds": [],
       "position": {
         "x": 1920,
@@ -361,12 +373,12 @@
     "version": "1.0",
     "notes": "New show created"
   },
-  "exportedAt": "2025-09-06T14:57:07.582Z",
+  "exportedAt": "2025-09-09T00:25:48.583Z",
   "version": "1.0",
   "packageFormat": "meander-show-v2",
   "assets": {
     "folder": "assets",
-    "totalFiles": 2,
+    "totalFiles": 4,
     "missingFiles": []
   }
 }
