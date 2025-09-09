@@ -6,7 +6,6 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://reactjs.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-43853D?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
 *Where every performance is unique, and every audience shapes the story.*
 
@@ -359,7 +358,7 @@ The Performer component will provide a specialized interface for performers with
 
 1. **Clone Repository**
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/walkerkaiman/Meander.git
    cd Meander
    ```
 
@@ -472,34 +471,3 @@ Meander/
 - **ESLint**: Consistent code formatting
 - **Prettier**: Code style enforcement
 - **Husky**: Pre-commit hooks
-
----
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
----
-
-## Contributing
-
-Contributions are welcome! Please see our contributing guidelines for details on:
-- Code style and standards
-- Testing requirements
-- Pull request process
-- Issue reporting
-
----
-
-## Support
-
-For support, questions, or feature requests:
-- **Issues**: GitHub Issues
-- **Documentation**: Component-specific READMEs
-- **Community**: [Contact information]
-
----
-
-**Built for theatrical innovation and interactive storytelling**
-
-*MEANDER - Where every performance is unique, and every audience shapes the story.*
