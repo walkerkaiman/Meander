@@ -12,8 +12,21 @@ const ControlBar: React.FC = () => {
   const { showSeconds, sceneSeconds, countdown, isVoting } = useConductorEngine();
   const fmt = (s:number)=> new Date(s*1000).toISOString().substr(11,8);
 
+  const handleQRCodeClick = () => {
+    // Open QR code page in new tab
+    const qrUrl = `http://${location.hostname}:4000/QR`;
+    window.open(qrUrl, '_blank', 'noopener,noreferrer');
+  };
+
   return (
     <div className="control-bar">
+      <button
+        className="control-btn control-btn-qr"
+        onClick={handleQRCodeClick}
+        title="Open QR Codes for Audience and Performer Pages"
+      >
+        📱 QR Codes
+      </button>
       <div className="timers">
         <span style={{marginLeft:'1rem'}}>Scene {fmt(sceneSeconds)}</span>
       </div>

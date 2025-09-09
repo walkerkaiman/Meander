@@ -40,4 +40,27 @@ test.describe('Conductor UI - Basic Functionality', () => {
     const timerElement = page.locator('[style*="color:#a0a0a0"]').first();
     await expect(timerElement).toBeVisible();
   });
+
+  test('should have QR code button that opens QR page', async ({ page }) => {
+    // Check for QR code button in control bar
+    const qrButton = page.locator('button:has-text("📱 QR Codes")');
+    await expect(qrButton).toBeVisible();
+    await expect(qrButton).toBeEnabled();
+
+    // Click the QR button and verify it opens a new tab
+    const [newPage] = await Promise.all([
+      page.context().waitForEvent('page'),
+      qrButton.click()
+    ]);
+
+    // Wait for the new page to load
+    await newPage.waitForLoadState();
+    
+    // Verify the new page is the QR code page
+    await expect(newPage).toHaveURL(/\/QR$/);
+    await expect(newPage.locator('h1:has-text("MEANDER QR Codes")')).toBeVisible();
+    
+    // Close the new page
+    await newPage.close();
+  });
 });

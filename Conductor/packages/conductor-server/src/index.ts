@@ -11,6 +11,8 @@ import AdmZip from "adm-zip";
 import dotenv from "dotenv";
 import { EventEmitter } from "eventemitter3";
 import { z } from "zod";
+import QRCode from "qrcode";
+import { networkInterfaces } from "os";
 import { audienceRouter } from "./routes/audience";
 import { Sequencer } from "./sequencer";
 import { eventBus as serverEventBus } from "./eventBus";
@@ -26,6 +28,26 @@ const envSchema = z.object({
   LOG_LEVEL: z.string().default("info"),
 });
 const env = envSchema.parse(process.env);
+
+// Get local network IP address
+function getLocalNetworkIP(): string {
+  const interfaces = networkInterfaces();
+  for (const name of Object.keys(interfaces)) {
+    const networkInterface = interfaces[name];
+    if (networkInterface) {
+      for (const net of networkInterface) {
+        // Skip internal (loopback) and non-IPv4 addresses
+        if (net.family === 'IPv4' && !net.internal) {
+          return net.address;
+        }
+      }
+    }
+  }
+  return 'localhost'; // fallback
+}
+
+const localIP = getLocalNetworkIP();
+const serverPort = Number(env.SERVER_PORT);
 
 // Instantiate core pieces
 const app = express();
@@ -121,6 +143,265 @@ app.get('/audience', (req, res) => {
 app.get('/conductor', (req, res) => {
   // Always redirect to localhost since conductor UI is typically used locally
   res.redirect('http://localhost:5173/');
+});
+
+// QR Code page route
+app.get('/QR', async (req, res) => {
+  try {
+    const baseUrl = `http://${localIP}:${serverPort}`;
+    const audienceUrl = `${baseUrl}/audience-page`;
+    const performerUrl = `${baseUrl}/performer-page`; // Future performer page
+    
+    // Generate QR codes as data URLs
+    const audienceQR = await QRCode.toDataURL(audienceUrl, {
+      width: 400,
+      margin: 2,
+      color: {
+        dark: '#000000',
+        light: '#FFFFFF'
+      }
+    });
+    
+    const performerQR = await QRCode.toDataURL(performerUrl, {
+      width: 400,
+      margin: 2,
+      color: {
+        dark: '#000000',
+        light: '#FFFFFF'
+      }
+    });
+
+    const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MEANDER QR Codes</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #000;
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            width: 100%;
+            text-align: center;
+        }
+        
+        h1 {
+            font-size: 3rem;
+            font-weight: 800;
+            margin-bottom: 2rem;
+            background: linear-gradient(135deg, #0066cc, #00aaff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .qr-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 3rem;
+            margin-top: 2rem;
+        }
+        
+        .qr-section {
+            background: #111;
+            border-radius: 20px;
+            padding: 2rem;
+            border: 2px solid #333;
+            transition: transform 0.3s ease, border-color 0.3s ease;
+        }
+        
+        .qr-section:hover {
+            transform: translateY(-5px);
+            border-color: #0066cc;
+        }
+        
+        .qr-section h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            color: #fff;
+        }
+        
+        .qr-section p {
+            font-size: 1rem;
+            color: #ccc;
+            margin-bottom: 1.5rem;
+            line-height: 1.5;
+        }
+        
+        .qr-code {
+            margin: 1rem 0;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 102, 204, 0.3);
+        }
+        
+        .qr-code img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        
+        .url-display {
+            background: #222;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 1rem;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.9rem;
+            color: #00aaff;
+            word-break: break-all;
+            border: 1px solid #333;
+        }
+        
+        .server-info {
+            margin-top: 3rem;
+            padding: 1.5rem;
+            background: #111;
+            border-radius: 15px;
+            border: 1px solid #333;
+        }
+        
+        .server-info h3 {
+            font-size: 1.2rem;
+            margin-bottom: 0.5rem;
+            color: #00aaff;
+        }
+        
+        .server-info p {
+            color: #ccc;
+            font-size: 0.9rem;
+        }
+        
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2rem;
+            }
+            
+            .qr-grid {
+                grid-template-columns: 1fr;
+                gap: 2rem;
+            }
+            
+            .qr-section {
+                padding: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>MEANDER QR Codes</h1>
+        
+        <div class="qr-grid">
+            <div class="qr-section">
+                <h2>🎭 Audience Page</h2>
+                <p>Scan this QR code to access the audience voting interface on your mobile device.</p>
+                <div class="qr-code">
+                    <img src="${audienceQR}" alt="Audience Page QR Code">
+                </div>
+                <div class="url-display">${audienceUrl}</div>
+            </div>
+            
+            <div class="qr-section">
+                <h2>🎪 Performer Page</h2>
+                <p>Scan this QR code to access the performer interface (coming soon).</p>
+                <div class="qr-code">
+                    <img src="${performerQR}" alt="Performer Page QR Code">
+                </div>
+                <div class="url-display">${performerUrl}</div>
+            </div>
+        </div>
+        
+        <div class="server-info">
+            <h3>🌐 Server Information</h3>
+            <p>Local Network IP: <strong>${localIP}</strong> | Port: <strong>${serverPort}</strong></p>
+            <p>Make sure all devices are connected to the same local network.</p>
+        </div>
+    </div>
+</body>
+</html>`;
+
+    res.setHeader('Content-Type', 'text/html');
+    res.send(html);
+  } catch (error) {
+    console.error('Error generating QR codes:', error);
+    res.status(500).send('Error generating QR codes');
+  }
+});
+
+// Placeholder for future performer page
+app.get('/performer-page', (req, res) => {
+  res.send(`
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MEANDER Performer Page - Coming Soon</title>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #000;
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 20px;
+        }
+        h1 {
+            font-size: 3rem;
+            font-weight: 800;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, #0066cc, #00aaff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        p {
+            font-size: 1.2rem;
+            color: #ccc;
+            margin-bottom: 2rem;
+        }
+        .coming-soon {
+            background: #111;
+            border-radius: 20px;
+            padding: 2rem;
+            border: 2px solid #333;
+            max-width: 600px;
+        }
+    </style>
+</head>
+<body>
+    <div class="coming-soon">
+        <h1>🎪 Performer Page</h1>
+        <p>This page is coming soon!</p>
+        <p>The performer interface will provide special controls and information for performers during interactive shows.</p>
+    </div>
+</body>
+</html>
+  `);
 });
 
 // Legacy audience UI route (for backwards compatibility)
@@ -420,4 +701,7 @@ serverEventBus.on("validationError", (payload) => broadcast({ type: "validationE
 server.listen(Number(env.SERVER_PORT), "0.0.0.0", () => {
   console.log(`Conductor server listening on :${env.SERVER_PORT}`);
   console.log(`📊 Show data persistence: ${env.DATA_DIR}/db/current`);
+  console.log(`🌐 QR Codes page: http://${localIP}:${serverPort}/QR`);
+  console.log(`🎭 Audience page: http://${localIP}:${serverPort}/audience-page`);
+  console.log(`🎪 Performer page: http://${localIP}:${serverPort}/performer-page (coming soon)`);
 });

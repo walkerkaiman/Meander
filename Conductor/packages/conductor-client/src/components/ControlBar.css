@@ -38,6 +38,15 @@
   transform: translateY(-1px);
 }
 
+.control-btn-qr {
+  background: #0066cc;
+}
+
+.control-btn-qr:hover:not(:disabled) {
+  background: #0052a3;
+  transform: translateY(-1px);
+}
+
 .control-btn-advance {
   background: #10b981;
 }
