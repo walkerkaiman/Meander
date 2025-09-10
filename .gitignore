@@ -23,5 +23,41 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Test Results and Reports
+test-results/
+playwright-report/
+**/test-results/
+**/playwright-report/
+*.log
+coverage/
+.nyc_output/
+
+# Test Screenshots and Videos
+**/screenshots/
+**/videos/
+**/*.png
+**/*.webm
+
+# Playwright specific
+**/playwright/.cache/
+**/playwright/.auth/
+
+# Test output files
+**/*.test-output
+**/test-output/
+
+# Testing frameworks
+.jest/
+.pytest_cache/
+.tox/
+.cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# IDE test results
+.vscode/test-results/
+.idea/test-results/
+
 # OS junk
 Thumbs.db
