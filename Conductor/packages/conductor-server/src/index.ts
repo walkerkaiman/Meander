@@ -8,9 +8,7 @@ import fs from "fs";
 import { promises as fsp } from "fs";
 import multer from "multer";
 import AdmZip from "adm-zip";
-import dotenv from "dotenv";
 import { EventEmitter } from "eventemitter3";
-import { z } from "zod";
 import QRCode from "qrcode";
 import { networkInterfaces } from "os";
 import { audienceRouter } from "./routes/audience";
@@ -18,17 +16,10 @@ import { Sequencer } from "./sequencer";
 import { eventBus as serverEventBus } from "./eventBus";
 import { snapshot } from "./routes/audience";
 import { OscPublisher } from "./osc";
+import { config } from "./config";
+import { createWiFiNetworkConfig, generateWiFiQRString } from "./wifi";
 
-// Load env
-dotenv.config();
-
-const envSchema = z.object({
-  SERVER_PORT: z.string().default("4000"),
-  OSC_PORT: z.string().default("57121"),
-  DATA_DIR: z.string().default(`${require("os").homedir()}/.meander`),
-  LOG_LEVEL: z.string().default("info"),
-});
-const env = envSchema.parse(process.env);
+// Configuration is now loaded from config.ts
 
 // Get local network IP address
 function getLocalNetworkIP(): string {
@@ -48,14 +39,20 @@ function getLocalNetworkIP(): string {
 }
 
 const localIP = getLocalNetworkIP();
-const serverPort = Number(env.SERVER_PORT);
+const serverPort = Number(config.SERVER_PORT);
 
 // Instantiate core pieces
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
-const sequencer = new Sequencer(env.DATA_DIR);
-const oscPublisher = new OscPublisher(Number(env.OSC_PORT));
+const sequencer = new Sequencer(config.DATA_DIR);
+const oscPublisher = new OscPublisher(Number(config.OSC_PORT));
+
+// Generate Wi-Fi network configuration and QR code on startup
+const wifiNetwork = createWiFiNetworkConfig(config.WIFI_NETWORK_NAME, config.WIFI_PASSWORD);
+const wifiQRString = generateWiFiQRString(wifiNetwork);
+console.log(`📶 Wi-Fi Network: ${wifiNetwork.ssid}`);
+console.log(`🔐 Wi-Fi Password configured: ${'*'.repeat(config.WIFI_PASSWORD.length)}`);
 
 // Middlewares - Configure Helmet for local development
 app.use(helmet({
@@ -153,7 +150,10 @@ app.get('/QR', async (req, res) => {
     const baseUrl = `http://${localIP}:${serverPort}`;
     const audienceUrl = `${baseUrl}/audience-page`;
     const performerUrl = `${baseUrl}/performer-page`; // Future performer page
-    
+
+    // Generate a nonce for CSP
+    const nonce = require('crypto').randomBytes(16).toString('base64');
+
     // Generate QR codes as data URLs
     const audienceQR = await QRCode.toDataURL(audienceUrl, {
       width: 400,
@@ -163,8 +163,18 @@ app.get('/QR', async (req, res) => {
         light: '#FFFFFF'
       }
     });
-    
+
     const performerQR = await QRCode.toDataURL(performerUrl, {
+      width: 400,
+      margin: 2,
+      color: {
+        dark: '#000000',
+        light: '#FFFFFF'
+      }
+    });
+
+    // Generate Wi-Fi QR code
+    const wifiQR = await QRCode.toDataURL(wifiQRString, {
       width: 400,
       margin: 2,
       color: {
@@ -217,8 +227,8 @@ app.get('/QR', async (req, res) => {
         
         .qr-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-            gap: 3rem;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 2rem;
             margin-top: 2rem;
         }
         
@@ -227,12 +237,22 @@ app.get('/QR', async (req, res) => {
             border-radius: 20px;
             padding: 2rem;
             border: 2px solid #333;
-            transition: transform 0.3s ease, border-color 0.3s ease;
+            transition: transform 0.3s ease, border-color 0.3s ease, background-color 0.3s ease;
+            cursor: pointer;
+            text-decoration: none;
+            color: inherit;
+            display: block;
         }
         
         .qr-section:hover {
             transform: translateY(-5px);
             border-color: #0066cc;
+            background-color: #1a1a1a;
+        }
+        
+        .qr-section:active {
+            transform: translateY(-2px);
+            background-color: #222;
         }
         
         .qr-section h2 {
@@ -297,12 +317,12 @@ app.get('/QR', async (req, res) => {
             h1 {
                 font-size: 2rem;
             }
-            
+
             .qr-grid {
                 grid-template-columns: 1fr;
-                gap: 2rem;
+                gap: 1.5rem;
             }
-            
+
             .qr-section {
                 padding: 1.5rem;
             }
@@ -315,17 +335,26 @@ app.get('/QR', async (req, res) => {
         
         <div class="qr-grid">
             <div class="qr-section">
+                <h2>📶 Wi-Fi Network</h2>
+                <p>Scan this QR code to automatically connect to the Wi-Fi network. Password: <strong>${config.WIFI_PASSWORD}</strong></p>
+                <div class="qr-code">
+                    <img src="${wifiQR}" alt="Wi-Fi Network QR Code">
+                </div>
+                <div class="url-display">Network: ${wifiNetwork.ssid}</div>
+            </div>
+
+            <div class="qr-section" data-url="${audienceUrl}">
                 <h2>🎭 Audience Page</h2>
-                <p>Scan this QR code to access the audience voting interface on your mobile device.</p>
+                <p>Click to open the audience voting interface in a new tab, or scan the QR code with your mobile device.</p>
                 <div class="qr-code">
                     <img src="${audienceQR}" alt="Audience Page QR Code">
                 </div>
                 <div class="url-display">${audienceUrl}</div>
             </div>
-            
-            <div class="qr-section">
+
+            <div class="qr-section" data-url="${performerUrl}">
                 <h2>🎪 Performer Page</h2>
-                <p>Scan this QR code to access the performer interface (coming soon).</p>
+                <p>Click to open the performer interface in a new tab, or scan the QR code with your mobile device.</p>
                 <div class="qr-code">
                     <img src="${performerQR}" alt="Performer Page QR Code">
                 </div>
@@ -339,10 +368,25 @@ app.get('/QR', async (req, res) => {
             <p>Make sure all devices are connected to the same local network.</p>
         </div>
     </div>
+    
+    <script nonce="${nonce}">
+        document.addEventListener('DOMContentLoaded', function() {
+            const qrSections = document.querySelectorAll('.qr-section');
+            qrSections.forEach(function(section) {
+                section.addEventListener('click', function() {
+                    const url = this.getAttribute('data-url');
+                    if (url) {
+                        window.open(url, '_blank');
+                    }
+                });
+            });
+        });
+    </script>
 </body>
 </html>`;
 
     res.setHeader('Content-Type', 'text/html');
+    res.setHeader('Content-Security-Policy', `default-src 'self'; script-src 'self' 'nonce-${nonce}'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: wss:;`);
     res.send(html);
   } catch (error) {
     console.error('Error generating QR codes:', error);
@@ -721,10 +765,11 @@ serverEventBus.on("showLoaded", (payload) => {
 serverEventBus.on("validationError", (payload) => broadcast({ type: "validationError", payload }));
 
 // Start server
-server.listen(Number(env.SERVER_PORT), "0.0.0.0", () => {
-  console.log(`Conductor server listening on :${env.SERVER_PORT}`);
-  console.log(`📊 Show data persistence: ${env.DATA_DIR}/db/current`);
+server.listen(Number(config.SERVER_PORT), "0.0.0.0", () => {
+  console.log(`Conductor server listening on :${config.SERVER_PORT}`);
+  console.log(`📊 Show data persistence: ${config.DATA_DIR}/db/current`);
   console.log(`🌐 QR Codes page: http://${localIP}:${serverPort}/QR`);
   console.log(`🎭 Audience page: http://${localIP}:${serverPort}/audience-page`);
   console.log(`🎪 Performer page: http://${localIP}:${serverPort}/performer-page (coming soon)`);
+  console.log(`📶 Wi-Fi QR Code: Enabled for network "${wifiNetwork.ssid}"`);
 });

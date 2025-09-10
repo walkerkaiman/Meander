@@ -416,6 +416,12 @@ MEANDER is designed for **local network deployment** during performances:
 - **Local Network**: All devices on same subnet
 - **No Internet**: Performance works offline
 
+### Wi-Fi QR Code Feature
+- **QR Code Page**: Visit `http://[server-ip]:4000/QR` to access QR codes
+- **Wi-Fi Network**: Automatically generates QR code for configured network
+- **Configuration**: Set `WIFI_NETWORK_NAME` and `WIFI_PASSWORD` in `config.env`
+- **Format**: Uses standard Wi-Fi QR format for easy device connection
+
 ---
 
 ## Testing
