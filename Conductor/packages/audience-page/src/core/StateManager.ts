@@ -101,16 +101,24 @@ export class StateManager extends EventEmitter<Record<string, AudienceEvent>> {
    * Update countdown timer
    */
   setCountdown(seconds: number): void {
+    const previousCountdown = this.state.countdown;
+    const previousIsVoting = this.state.isVoting;
+
     this.state.countdown = seconds;
     this.state.isVoting = seconds > 0;
-    
+
     // Auto-submit vote when timer reaches 0
     if (seconds === 0 && !this.state.voteSent) {
       this.submitCurrentVote();
     }
 
-    this.emit('state_changed', this.getState());
-    this.emit('event', { type: 'countdown_updated', payload: seconds });
+    // Only emit state_changed if voting state actually changed (not just countdown number)
+    if (previousIsVoting !== this.state.isVoting) {
+      this.emit('state_changed', this.getState());
+    }
+
+    // Always emit countdown update for components that need to know the exact countdown value
+    this.emit('countdown_updated', seconds);
   }
 
   /**

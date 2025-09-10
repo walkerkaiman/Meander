@@ -201,6 +201,11 @@ export class AudienceApp {
       this.handleStateChange(state);
     });
 
+    // Listen for countdown updates separately
+    this.stateManager.on('countdown_updated', (countdown: number) => {
+      this.handleCountdownUpdate(countdown);
+    });
+
     // Listen for graph loaded events to potentially update the display
     this.stateManager.on('event', (event) => {
       if (event.type === 'graph_loaded') {
@@ -250,7 +255,10 @@ export class AudienceApp {
         break;
 
       case 'voteTick':
-        this.stateManager.setCountdown(message.payload.remainingSeconds);
+        // Only process voteTick if we have a fork component and it's for the current state
+        if (this.currentComponent === 'fork' && this.fork) {
+          this.stateManager.setCountdown(message.payload.remainingSeconds);
+        }
         break;
 
       case 'voteResult':
@@ -271,8 +279,15 @@ export class AudienceApp {
     }
   }
 
+  private handleCountdownUpdate(countdown: number): void {
+    // Only update countdown if we have a fork component currently displayed
+    if (this.currentComponent === 'fork' && this.fork) {
+      this.fork.updateCountdown(countdown);
+    }
+  }
+
   private handleStateChange(state: AudienceState): void {
-    
+
     if (!state.isConnected && this.currentComponent !== 'error') {
       this.showError('Connection Lost', 'Lost connection to the show. Attempting to reconnect...');
       return;
@@ -283,8 +298,19 @@ export class AudienceApp {
       return;
     }
 
-    this.renderCurrentState();
+    // Update existing components if possible, otherwise re-render
+    if (this.currentComponent === 'fork' && this.fork && state.activeState?.type === 'fork') {
+      // Update voting state and selection without full re-render
+      this.fork.updateVotingState(state.isVoting);
+      if (state.selectedChoiceIndex !== null) {
+        this.fork.updateSelection(state.selectedChoiceIndex);
+      }
+    } else {
+      // Full re-render needed for different states
+      this.renderCurrentState();
+    }
   }
+
 
   private renderCurrentState(): void {
     const state = this.stateManager.getState();
@@ -343,47 +369,61 @@ export class AudienceApp {
       return;
     }
 
-    this.cleanup();
-    this.currentComponent = 'scene';
-
-    this.scene = new Scene(this.container, this.config);
-    this.scene.on('media_error', (error) => {
-      console.error('❌ Scene media error:', error);
-      // Don't show error for media issues, just continue with fallback
+    this.transitionToComponent('scene', () => {
+      this.scene = new Scene(this.container, this.config);
+      this.scene.on('media_error', (error) => {
+        console.error('❌ Scene media error:', error);
+        // Don't show error for media issues, just continue with fallback
+      });
+      this.scene.render(node);
     });
-
-    this.scene.render(node);
   }
 
   private showFork(node: any, countdown: number | null, selectedChoice: number | null): void {
-    this.cleanup();
-    this.currentComponent = 'fork';
+    // Create new fork component
+    this.transitionToComponent('fork', () => {
+      // Get voting state from state manager
+      const state = this.stateManager.getState();
+      const isVoting = state.isVoting;
 
-    // Get voting state from state manager
-    const state = this.stateManager.getState();
-    const isVoting = state.isVoting;
+      this.fork = new Fork(this.container);
+      this.fork.on('choice_selected', (choiceIndex) => {
+        this.stateManager.selectChoice(choiceIndex);
+      });
 
-    this.fork = new Fork(this.container);
-    this.fork.on('choice_selected', (choiceIndex) => {
-      this.stateManager.selectChoice(choiceIndex);
-    });
+      this.fork.render(node, countdown, isVoting);
 
-    this.fork.render(node, countdown, isVoting);
-
-    // Update selection and countdown if available
-    if (selectedChoice !== null) {
-      this.fork.updateSelection(selectedChoice);
-    }
-    if (countdown !== null) {
-      this.fork.updateCountdown(countdown);
-    }
-
-    // Listen for voting state changes and update the fork component
-    this.stateManager.on('state_changed', (newState) => {
-      if (this.currentComponent === 'fork' && this.fork) {
-        this.fork.updateVotingState(newState.isVoting);
+      // Update selection if available
+      if (selectedChoice !== null) {
+        this.fork.updateSelection(selectedChoice);
       }
     });
+  }
+
+  /**
+   * Handle smooth fade transition between different component types
+   */
+  private transitionToComponent(newComponentType: 'scene' | 'fork', renderCallback: () => void): void {
+    const currentElement = this.container.firstElementChild as HTMLElement;
+
+    if (currentElement && this.currentComponent !== newComponentType) {
+      // Add fade-out class to current component
+      currentElement.classList.add('fade-out');
+
+      // Wait for fade-out to complete, then render new component
+      setTimeout(() => {
+        this.cleanup();
+        this.currentComponent = newComponentType;
+
+        // Render new component (starts with opacity: 1 by default)
+        renderCallback();
+      }, 300); // Match CSS transition duration
+    } else {
+      // No transition needed (same component type or no current component)
+      this.cleanup();
+      this.currentComponent = newComponentType;
+      renderCallback();
+    }
   }
 
   private cleanup(): void {

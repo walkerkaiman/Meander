@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { ProjectData } from './types';
 import { FileOperations } from './utils/fileOperations';
-import { loadShowFromFile } from './utils/fileLoaders';
+import { loadShowFromFile, cleanupTempFiles } from './utils/fileLoaders';
 import { EditorLayout } from './components/EditorLayout';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -18,6 +18,9 @@ function App() {
   const handleCreateNewShow = async (showName: string, author: string) => {
     setIsLoading(true);
     try {
+      // Clean up any existing temporary files when creating new project
+      cleanupTempFiles();
+
       const newProject = FileOperations.createNewShow(showName, author);
       setProjectData(newProject);
       setHasUnsavedChanges(false); // New project starts as saved
@@ -33,32 +36,38 @@ function App() {
     console.log('loadShowFromFile function available:', typeof loadShowFromFile);
 
     setIsLoading(true);
-    try {
-      console.log('About to call loadShowFromFile');
+        try {
+          console.log('About to call loadShowFromFile');
 
-      if (typeof loadShowFromFile !== 'function') {
-        console.error('loadShowFromFile is not a function!');
-        return;
-      }
+          if (typeof loadShowFromFile !== 'function') {
+            console.error('loadShowFromFile is not a function!');
+            return;
+          }
 
-      // Open file picker to allow user to select a file to load
-      const fileProject = await loadShowFromFile();
-      console.log('loadShowFromFile returned:', fileProject);
-      if (fileProject) {
-        setProjectData(fileProject);
-        setHasUnsavedChanges(false); // Loaded project starts as saved
-      }
-    } catch (error) {
-      console.error('Error loading show:', error);
-    } finally {
-      setIsLoading(false);
-    }
+          // Clean up any existing temporary files before loading new project
+          cleanupTempFiles();
+
+          // Open file picker to allow user to select a file to load
+          const fileProject = await loadShowFromFile();
+          console.log('loadShowFromFile returned:', fileProject);
+          if (fileProject) {
+            setProjectData(fileProject);
+            setHasUnsavedChanges(false); // Loaded project starts as saved
+          }
+        } catch (error) {
+          console.error('Error loading show:', error);
+        } finally {
+          setIsLoading(false);
+        }
   };
 
 
   const handleNewShow = async () => {
     setIsLoading(true);
     try {
+      // Clean up any existing temporary files when creating new project
+      cleanupTempFiles();
+
       const newProject = FileOperations.createNewShow('Untitled Show', 'Unknown Author');
       setProjectData(newProject);
       setHasUnsavedChanges(false); // New project starts as saved

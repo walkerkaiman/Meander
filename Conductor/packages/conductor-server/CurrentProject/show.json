@@ -3,7 +3,7 @@
     "showName": "Fantasy High",
     "version": "1.0",
     "created": "2025-09-06T01:47:41.320Z",
-    "lastEdited": "2025-09-09T00:25:46.659Z",
+    "lastEdited": "2025-09-09T01:14:33.122Z",
     "initialStateId": "scene_1757123261320"
   },
   "states": [
@@ -58,7 +58,7 @@
           "nextStateId": "node_1757123507022_2vmv5pjie"
         },
         {
-          "label": "Say Your're Sorry",
+          "label": "Say You're Sorry",
           "nextStateId": "node_1757123519303_bzg4y95u1"
         }
       ],
@@ -79,7 +79,13 @@
       "title": "Detention",
       "description": "In a dim, rune-carved classroom, rebellious students slump at desks.",
       "performerText": "\"Hey kid, I know you!\"",
-      "audienceMedia": [],
+      "audienceMedia": [
+        {
+          "type": "image",
+          "file": "assets/giphy.gif",
+          "size": 1176226
+        }
+      ],
       "outputIds": [],
       "position": {
         "x": 900,
@@ -95,7 +101,13 @@
       "title": "Pushed to the Floor",
       "description": "Nerdy kids pick up the other kid.",
       "performerText": "\"Want to join our group?\"",
-      "audienceMedia": [],
+      "audienceMedia": [
+        {
+          "type": "image",
+          "file": "assets/giphy (1).gif",
+          "size": 1257124
+        }
+      ],
       "outputIds": [],
       "position": {
         "x": 900,
@@ -158,8 +170,8 @@
       "audienceMedia": [
         {
           "type": "image",
-          "file": "assets/b368a8448451f4a79af5946d6f799d7f.gif",
-          "size": 1017239
+          "file": "assets/giphy (2).gif",
+          "size": 1227382
         }
       ],
       "outputIds": [],
@@ -221,7 +233,13 @@
       "title": "Ending Scene",
       "description": "All lights and audio in walkout mode.",
       "performerText": "\"Bya!\"",
-      "audienceMedia": [],
+      "audienceMedia": [
+        {
+          "type": "image",
+          "file": "assets/be22c1077410799a24ef5249db66c8a6.gif",
+          "size": 508026
+        }
+      ],
       "outputIds": [],
       "position": {
         "x": 2440,
@@ -373,12 +391,12 @@
     "version": "1.0",
     "notes": "New show created"
   },
-  "exportedAt": "2025-09-09T00:25:48.583Z",
+  "exportedAt": "2025-09-09T01:14:37.264Z",
   "version": "1.0",
   "packageFormat": "meander-show-v2",
   "assets": {
     "folder": "assets",
-    "totalFiles": 4,
+    "totalFiles": 7,
     "missingFiles": []
   }
 }

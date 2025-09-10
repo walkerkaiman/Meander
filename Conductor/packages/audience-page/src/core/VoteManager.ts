@@ -31,10 +31,14 @@ export class VoteManager extends EventEmitter<{
    * Submit a vote for the given choice
    */
   private async submitVote(choiceIndex: number | null, forkId: string): Promise<void> {
+    console.log('📤 VoteManager.submitVote called with:', { choiceIndex, forkId });
+
     const state = this.stateManager.getState();
-    
+    console.log('📊 VoteManager state:', { voteSent: state.voteSent, selectedChoiceIndex: state.selectedChoiceIndex });
+
     // Don't submit if already submitted
     if (state.voteSent) {
+      console.log('❌ Vote already submitted, skipping');
       return;
     }
 
@@ -46,19 +50,22 @@ export class VoteManager extends EventEmitter<{
       deviceId: state.deviceId
     };
 
+    console.log('🚀 Submitting vote payload:', votePayload);
 
     try {
       // Mark as submitted immediately to prevent double submission
       this.stateManager.markVoteSubmitted();
-      
+      console.log('✅ Vote marked as submitted');
+
       await this.apiManager.submitVote(votePayload);
-      
+      console.log('🎉 Vote submitted successfully');
+
       this.emit('vote_submitted', votePayload);
-      
+
     } catch (error) {
-      console.error('Failed to submit vote:', error);
+      console.error('❌ Failed to submit vote:', error);
       this.emit('vote_failed', error as Error);
-      
+
       // Reset vote submitted status on failure so user can try again
       // Note: This could lead to double votes, but it's better than losing votes
       // The server should handle deduplication based on deviceId + forkId

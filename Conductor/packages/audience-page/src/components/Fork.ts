@@ -1,7 +1,6 @@
 import { ForkNode } from '../types/conductor-types';
 import { Choice } from '../types';
 import { EventEmitter } from '../core/EventEmitter';
-import { DeviceManager } from '../core/DeviceManager';
 
 /**
  * Fork component for displaying voting interface
@@ -11,7 +10,6 @@ export class Fork extends EventEmitter<{
   countdown_complete: void;
 }> {
   private container: HTMLElement;
-  private deviceManager: DeviceManager;
   private timerElement: HTMLElement | null = null;
   private choicesContainer: HTMLElement | null = null;
   private choices: Choice[] = [];
@@ -22,7 +20,6 @@ export class Fork extends EventEmitter<{
   constructor(container: HTMLElement) {
     super();
     this.container = container;
-    this.deviceManager = DeviceManager.getInstance();
   }
 
   /**
@@ -31,7 +28,7 @@ export class Fork extends EventEmitter<{
   render(node: ForkNode, countdown: number | null = null, isVoting: boolean = false): void {
 
     this.container.innerHTML = '';
-    this.container.className = 'fork';
+    this.container.className = `fork ${!isVoting ? 'fork--inactive' : ''}`;
     this.isVoting = isVoting;
 
     // Extract choices from node
@@ -59,6 +56,9 @@ export class Fork extends EventEmitter<{
       this.timerElement.textContent = this.formatCountdown(seconds);
     }
 
+    // Update countdown on buttons when in inactive state
+    this.updateButtonCountdown(seconds);
+
     if (seconds === 0 && !this.isLocked) {
       this.lockInterface();
       this.emit('countdown_complete');
@@ -69,6 +69,11 @@ export class Fork extends EventEmitter<{
    * Update selected choice
    */
   updateSelection(choiceIndex: number | null): void {
+    // Only update selection if it has actually changed
+    if (this.selectedIndex === choiceIndex) {
+      return;
+    }
+
     this.selectedIndex = choiceIndex;
     this.updateChoiceStyles();
   }
@@ -77,8 +82,26 @@ export class Fork extends EventEmitter<{
    * Update voting state
    */
   updateVotingState(isVoting: boolean): void {
+    // Only update if the voting state has actually changed
+    if (this.isVoting === isVoting) {
+      return;
+    }
+
+    const wasVoting = this.isVoting;
     this.isVoting = isVoting;
-    this.updateChoiceStyles();
+
+    // Update the container class to reflect voting state
+    if (!isVoting) {
+      this.container.classList.add('fork--inactive');
+    } else {
+      this.container.classList.remove('fork--inactive');
+    }
+
+    // Only update styles if voting state actually changed from voting to not voting or vice versa
+    // This prevents unnecessary updates during countdown changes within the same voting state
+    if (wasVoting !== isVoting) {
+      this.updateChoiceStyles();
+    }
   }
 
   /**
@@ -139,6 +162,7 @@ export class Fork extends EventEmitter<{
     button.setAttribute('role', 'radio');
     button.setAttribute('aria-checked', 'false');
     button.setAttribute('aria-labelledby', `choice-${choice.index}`);
+    button.setAttribute('data-countdown', ''); // Initialize countdown attribute
     button.textContent = choice.label;
 
     // Add label element for better accessibility
@@ -154,18 +178,19 @@ export class Fork extends EventEmitter<{
   private setupEventListeners(): void {
     if (!this.choicesContainer) return;
 
-    // Delegated event handling
+    // Simple click handler for both mouse and touch
     this.choicesContainer.addEventListener('click', (event) => {
-      this.handleChoiceClick(event);
+      this.handleChoiceSelection(event);
     });
 
-    // Keyboard navigation
-    this.choicesContainer.addEventListener('keydown', (event) => {
-      this.handleKeyDown(event);
-    });
+    // Handle touch events for mobile - use touchstart to avoid preventDefault issues
+    this.choicesContainer.addEventListener('touchstart', (event) => {
+      this.handleChoiceSelection(event);
+    }, { passive: true });
   }
 
-  private handleChoiceClick(event: Event): void {
+  private handleChoiceSelection(event: Event): void {
+    // Check if voting is allowed
     if (this.isLocked || !this.isVoting) return;
 
     const target = event.target as HTMLElement;
@@ -178,92 +203,51 @@ export class Fork extends EventEmitter<{
     this.selectChoice(index);
   }
 
-  private handleKeyDown(event: KeyboardEvent): void {
-    if (this.isLocked || !this.isVoting) return;
-
-    const target = event.target as HTMLElement;
-    if (!target.classList.contains('fork__choice')) return;
-
-    switch (event.key) {
-      case 'Enter':
-      case ' ':
-        event.preventDefault();
-        const indexStr = target.getAttribute('data-index');
-        if (indexStr !== null) {
-          const index = parseInt(indexStr, 10);
-          this.selectChoice(index);
-        }
-        break;
-        
-      case 'ArrowLeft':
-      case 'ArrowUp':
-        event.preventDefault();
-        this.navigateToPreviousChoice();
-        break;
-        
-      case 'ArrowRight':
-      case 'ArrowDown':
-        event.preventDefault();
-        this.navigateToNextChoice();
-        break;
-    }
-  }
-
   private selectChoice(index: number): void {
     if (this.isLocked || index < 0 || index >= this.choices.length) {
       return;
     }
 
+    // Set the selected choice
     this.selectedIndex = index;
-    this.updateChoiceStyles();
-    this.emit('choice_selected', index);
 
-    // Haptic feedback
-    this.deviceManager.vibrate(50);
+    // Update visual feedback
+    this.updateChoiceStyles();
+
+    // Emit selection event
+    this.emit('choice_selected', index);
   }
 
   private updateChoiceStyles(): void {
     if (!this.choicesContainer) return;
 
     const buttons = this.choicesContainer.querySelectorAll('.fork__choice');
-    buttons.forEach((button, index) => {
-      const isSelected = index === this.selectedIndex;
-      const isDisabled = this.isLocked || !this.isVoting;
 
-      // Update selection state
-      if (isSelected) {
-        button.classList.add('fork__choice--selected');
-        button.setAttribute('aria-checked', 'true');
-      } else {
-        button.classList.remove('fork__choice--selected');
-        button.setAttribute('aria-checked', 'false');
-      }
-
-      // Update disabled state
-      if (isDisabled) {
-        button.classList.add('fork__choice--disabled');
-        button.setAttribute('disabled', 'true');
-      } else {
-        button.classList.remove('fork__choice--disabled');
-        button.removeAttribute('disabled');
-      }
+    // Clear all selection states first
+    buttons.forEach(button => {
+      button.classList.remove('fork__choice--selected');
+      button.setAttribute('aria-checked', 'false');
     });
+
+    // Apply selected state to the chosen button
+    if (this.selectedIndex !== null && this.selectedIndex >= 0 && this.selectedIndex < buttons.length) {
+      const selectedButton = buttons[this.selectedIndex];
+      if (selectedButton) {
+        selectedButton.classList.add('fork__choice--selected');
+        selectedButton.setAttribute('aria-checked', 'true');
+      }
+    }
   }
 
-  private navigateToPreviousChoice(): void {
-    const buttons = Array.from(this.choicesContainer?.querySelectorAll('.fork__choice') || []);
-    const currentIndex = buttons.findIndex(button => button === document.activeElement);
-    const previousIndex = currentIndex > 0 ? currentIndex - 1 : buttons.length - 1;
-    
-    (buttons[previousIndex] as HTMLElement)?.focus();
-  }
+  private updateButtonCountdown(seconds: number): void {
+    if (!this.choicesContainer) return;
 
-  private navigateToNextChoice(): void {
-    const buttons = Array.from(this.choicesContainer?.querySelectorAll('.fork__choice') || []);
-    const currentIndex = buttons.findIndex(button => button === document.activeElement);
-    const nextIndex = currentIndex < buttons.length - 1 ? currentIndex + 1 : 0;
-    
-    (buttons[nextIndex] as HTMLElement)?.focus();
+    const buttons = this.choicesContainer.querySelectorAll('.fork__choice');
+    const countdownText = this.formatCountdown(seconds);
+
+    buttons.forEach(button => {
+      button.setAttribute('data-countdown', countdownText);
+    });
   }
 
   private formatCountdown(seconds: number | null): string {
