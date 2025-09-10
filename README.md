@@ -401,7 +401,7 @@ MEANDER is designed for **local network deployment** during performances:
 │                                                             │
 │  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐     │
 │  │   Laptop    │    │   Router    │    │   Mobile    │     │
-│  │ (Conductor) │◀──▶│   (WiFi)    │◀──▶│  Devices    │     │
+│  │ (Conductor) │◀─▶│   (WiFi)    │◀─▶│  Devices    │     │
 │  │             │    │             │    │ (Audience)  │     │
 │  │ :4000 HTTP  │    │             │    │             │     │
 │  │ :4000 WS    │    │             │    │             │     │

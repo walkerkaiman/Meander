@@ -17,6 +17,7 @@ import { audienceRouter } from "./routes/audience";
 import { Sequencer } from "./sequencer";
 import { eventBus as serverEventBus } from "./eventBus";
 import { snapshot } from "./routes/audience";
+import { OscPublisher } from "./osc";
 
 // Load env
 dotenv.config();
@@ -54,6 +55,7 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 const sequencer = new Sequencer(env.DATA_DIR);
+const oscPublisher = new OscPublisher(Number(env.OSC_PORT));
 
 // Middlewares - Configure Helmet for local development
 app.use(helmet({
@@ -478,6 +480,15 @@ app.get("/healthz", (_, res) => {
   res.json({ status: "ok" });
 });
 
+// OSC test endpoint
+app.post("/test-osc", (_req, res) => {
+  console.log('🧪 Testing OSC messages...');
+  oscPublisher.testMessage();
+  oscPublisher.stateChanged("scene", "Test Scene");
+  oscPublisher.forkCountdown("Test Fork", 5);
+  res.json({ success: true, message: "OSC test messages sent" });
+});
+
 // Manual advance endpoint
 app.post("/advance", (_req, res) => {
   console.log('🔄 ADVANCE REQUEST RECEIVED');
@@ -617,11 +628,16 @@ function startVote(forkId: string) {
 
   // Get countdown duration from the fork node
   let countdownSeconds = VOTE_DURATION; // default fallback
+  let forkName = forkId; // fallback to id
   if (sequencer && (sequencer as any).show && (sequencer as any).show.nodes) {
     const forkNode = (sequencer as any).show.nodes[forkId];
-    if (forkNode && forkNode.countdownSeconds) {
-      countdownSeconds = forkNode.countdownSeconds;
-      console.log(`Using fork-specific countdown: ${countdownSeconds}s for ${forkId}`);
+    if (forkNode) {
+      if (forkNode.countdownSeconds) {
+        countdownSeconds = forkNode.countdownSeconds;
+        console.log(`Using fork-specific countdown: ${countdownSeconds}s for ${forkId}`);
+      }
+      // Get fork name for OSC messages
+      forkName = forkNode.title || forkNode.id;
     }
   }
 
@@ -629,6 +645,10 @@ function startVote(forkId: string) {
   const interval = setInterval(() => {
     remaining -= 1;
     broadcast({ type: "voteTick", payload: { forkId, remainingSeconds: remaining } });
+    
+    // Send OSC countdown message
+    oscPublisher.forkCountdown(forkName, remaining);
+    
     if (remaining <= 0) {
       clearInterval(interval);
 
@@ -651,6 +671,9 @@ function startVote(forkId: string) {
 
   activeVote = { forkId, remaining, interval };
   broadcast({ type: "voteTick", payload: { forkId, remainingSeconds: remaining } });
+  
+  // Send initial OSC countdown message
+  oscPublisher.forkCountdown(forkName, remaining);
 }
 
 // WebSocket connection handler

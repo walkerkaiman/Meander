@@ -37,7 +37,6 @@ export class Sequencer {
   private db: Level<string, string>;
   private current: ActiveState | null = null;
   private osc = new OscPublisher();
-  private heartbeatTimer: NodeJS.Timeout | null = null;
   private show: ShowPackage | null = null;
   private timers = { showStart: null as number | null, sceneStart: null as number | null };
   private activeVotes: Map<string, Map<string, 0 | 1>> = new Map(); // forkId -> deviceId -> choiceIndex
@@ -50,8 +49,6 @@ export class Sequencer {
     console.log('🎭 Sequencer DB initialized, calling restore...');
     this.restore();
 
-    // Heartbeat every 5 seconds
-    this.heartbeatTimer = setInterval(() => this.osc.heartbeat(), 5000);
 
     // Listen for votes
     eventBus.on("voteReceived", ({ payload }) => this.onVote(payload));
@@ -438,6 +435,13 @@ export class Sequencer {
     this.persist();
     // Persist the show data
     this.persistShow();
+    
+    // Send OSC message for initial scene/fork
+    if (this.current) {
+      const nodeName = this.getNodeName(this.current.id);
+      this.osc.stateChanged(this.current.type, nodeName);
+    }
+    
     eventBus.emit("showLoaded", { showId: "local" });
     eventBus.emit("stateChanged", this.current);
   }
@@ -499,12 +503,24 @@ export class Sequencer {
     }
 
     this.persist();
-    // OSC broadcast
-    const path = nodeType === "scene" ? `/scene/${nextId}` : `/fork/${nextId}`;
-    this.osc.stateChanged(path);
+    
+    // OSC broadcast - get node name for the message
+    const nodeName = this.getNodeName(nextId);
+    this.osc.stateChanged(nodeType, nodeName);
 
     console.log('📡 Broadcasting stateChanged event:', this.current);
     eventBus.emit("stateChanged", this.current);
+  }
+
+  /**
+   * Get the display name for a node (title or id)
+   */
+  private getNodeName(nodeId: string): string {
+    if (!this.show?.nodes?.[nodeId]) {
+      return nodeId; // fallback to id if node not found
+    }
+    const node = this.show.nodes[nodeId];
+    return (node as any).title || node.id;
   }
 
   private computeNext(currentId: string): string {
@@ -813,6 +829,10 @@ export class Sequencer {
 
     // Clear any active votes
     this.activeVotes.clear();
+
+    // Send OSC message for reset state
+    const nodeName = this.getNodeName(stateId);
+    this.osc.stateChanged(this.current.type, nodeName);
 
     // Broadcast the new state change
     eventBus.emit("stateChanged", this.current);
