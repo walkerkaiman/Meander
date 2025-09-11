@@ -19,8 +19,6 @@ const ProgressSidebar: React.FC<ProgressSidebarProps> = ({ width = 250 }) => {
   }
 
   // Extract nodes and determine history and upcoming based on active state
-  // This is a simplified approach; in a real app, you'd need a more sophisticated way to track history
-  // and determine the sequence based on connections and traversal
   const nodeIds = Object.keys(graph.nodes);
   const activeIndex = nodeIds.indexOf(activeState.id);
   const historyNodes = activeIndex >= 0 ? nodeIds.slice(0, activeIndex + 1) : [];
