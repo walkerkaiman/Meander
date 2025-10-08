@@ -6,6 +6,12 @@ import { useConductorEngine } from '../runtime/useConductorEngine';
 
 const ProgressSidebar: React.FC = () => {
   const { showData, activeState } = useShowStore();
+  const { sceneSeconds } = useConductorEngine();
+  
+  // Format timer: seconds to HH:MM:SS
+  const formatTimer = (secs: number) => {
+    return new Date(secs * 1000).toISOString().substr(11, 8);
+  };
   
   if (!showData || !showData.states) {
     return <div className="progress-sidebar">No show data loaded</div>;
@@ -16,9 +22,14 @@ const ProgressSidebar: React.FC = () => {
       <div className="current-state">
         <h4>Current State</h4>
         {activeState ? (
-          <div className="current-state-info">
-            {showData.states.find(s => s.id === activeState.id)?.title || 'Unknown State'}
-          </div>
+          <>
+            <div className="current-state-info">
+              {showData.states.find(s => s.id === activeState.id)?.title || 'Unknown State'}
+            </div>
+            <div className="scene-timer-display">
+              ⏱️ Scene: {formatTimer(sceneSeconds)}
+            </div>
+          </>
         ) : (
           <p>No active state</p>
         )}

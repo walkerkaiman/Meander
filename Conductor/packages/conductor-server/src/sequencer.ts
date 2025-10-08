@@ -36,16 +36,21 @@ export interface ShowPackage {
 export class Sequencer {
   private db: Level<string, string>;
   private current: ActiveState | null = null;
-  private osc = new OscPublisher();
+  private osc: OscPublisher;
   private show: ShowPackage | null = null;
   private timers = { showStart: null as number | null, sceneStart: null as number | null };
   private activeVotes: Map<string, Map<string, 0 | 1>> = new Map(); // forkId -> deviceId -> choiceIndex
 
-  constructor(private dataDir: string) {
+  constructor(private dataDir: string, oscPort?: number, oscHost?: string, oscMulticast?: boolean) {
     console.log('🎭 Initializing Sequencer with data directory:', dataDir);
     const dbPath = path.join(dataDir, "db", "current");
     console.log('🎭 DB path:', dbPath);
     this.db = new Level(dbPath, { valueEncoding: "json" });
+    
+    // Initialize OSC with configured port and host
+    this.osc = new OscPublisher(oscPort, oscHost, oscMulticast);
+    console.log('🎭 OSC Publisher initialized in Sequencer');
+    
     console.log('🎭 Sequencer DB initialized, calling restore...');
     this.restore();
 
@@ -57,17 +62,10 @@ export class Sequencer {
   private async restore() {
     console.log('🔄 Starting sequencer restore process...');
     try {
-      // Restore current state
-      console.log('🔄 Attempting to restore current state from database...');
-      try {
-        const snapshot = await this.db.get("current");
-        this.current = snapshot as ActiveState;
-        console.log('🔄 Raw current state from DB:', snapshot);
-        console.log('✅ Successfully loaded current state from DB');
-      } catch (currentError) {
-        console.log('ℹ️ No saved current state found in database');
-        this.current = null;
-      }
+      // NOTE: We do NOT restore the previous current state
+      // Server always starts fresh at the opening scene when restarted
+      console.log('ℹ️ Skipping current state restoration - will initialize to opening scene after show data loads');
+      this.current = null;
 
       // Restore show data
       try {
@@ -144,6 +142,10 @@ export class Sequencer {
           } else if (this.show.states) {
             // Old format
             console.log('🔄 Processing old format (states array)');
+            
+            // Build node IDs set first for validation
+            const oldFormatNodeIds = new Set(this.show.states.map((s: any) => s.id));
+            
             states = this.show.states.map((n: any, idx) => ({
               id: n.id,
               type: n.type,
@@ -159,7 +161,7 @@ export class Sequencer {
 
             // Build connections from old format (next/choices)
             this.show.states.forEach((n: any) => {
-              if (n.type === "scene" && n.next && nodeIds.has(n.next)) {
+              if (n.type === "scene" && n.next && oldFormatNodeIds.has(n.next)) {
                 connections.push({
                   id: `${n.id}->${n.next}`,
                   fromNodeId: n.id,
@@ -167,13 +169,13 @@ export class Sequencer {
                   fromOutputIndex: 0,
                   label: ""
                 });
-              } else if (n.type === "scene" && n.next && !nodeIds.has(n.next)) {
+              } else if (n.type === "scene" && n.next && !oldFormatNodeIds.has(n.next)) {
                 console.log(`⚠️ Skipping scene connection from ${n.id} to non-existent node ${n.next}`);
               }
 
               if (n.type === "fork" && n.choices) {
                 n.choices.forEach((c: any, idx: number) => {
-                  if (c.nextStateId && nodeIds.has(c.nextStateId)) {
+                  if (c.nextStateId && oldFormatNodeIds.has(c.nextStateId)) {
                     connections.push({
                       id: `${n.id}-${idx}->${c.nextStateId}`,
                       fromNodeId: n.id,
@@ -181,7 +183,7 @@ export class Sequencer {
                       fromOutputIndex: idx,
                       label: c.label || ""
                     });
-                  } else if (c.nextStateId && !nodeIds.has(c.nextStateId)) {
+                  } else if (c.nextStateId && !oldFormatNodeIds.has(c.nextStateId)) {
                     console.log(`⚠️ Skipping fork choice connection from ${n.id} to non-existent node ${c.nextStateId}`);
                   }
                 });
@@ -191,7 +193,7 @@ export class Sequencer {
 
           // Use the top-level connections array from show.json
           let restoredConnections: Array<any> = [];
-          const nodeIds = new Set(Object.keys(this.show.nodes)); // Track valid node IDs
+          const nodeIds = new Set(this.show.nodes ? Object.keys(this.show.nodes) : this.show.states?.map((s: any) => s.id) || []); // Track valid node IDs
 
           if (this.show.connections && Array.isArray(this.show.connections)) {
             console.log('🔄 Using top-level connections array from show.json in restore');
@@ -238,42 +240,65 @@ export class Sequencer {
           snapshot.graph = { 
             states, 
             connections: restoredConnections,
-            nodes: this.show.nodes,  // Full node data for audience page
+            nodes: this.show.nodes || {},  // Full node data for audience page
             metadata: this.show.metadata
           };
           console.log('✅ Restored graph snapshot with', states.length, 'states and', restoredConnections.length, 'connections');
+          console.log('✅ Graph connections detail:', restoredConnections.map(c => `${c.fromNodeId} -> ${c.toNodeId}`));
+          
+          // Verify snapshot is properly set
+          if (!snapshot.graph || !snapshot.graph.connections) {
+            console.error('❌ ERROR: Graph snapshot not properly set after restore!');
+          } else {
+            console.log('✅ Verified: Graph snapshot is properly accessible');
+          }
+          
+          // Initialize to opening scene (fresh start on server startup)
+          console.log('🎬 Initializing to opening scene on server startup...');
+          const nodeEntries = Object.entries(this.show.nodes || {});
+          const openingScene = nodeEntries.find(([_, node]) => node.type === 'opening');
+          
+          if (openingScene) {
+            const openingId = openingScene[0];
+            this.current = { id: openingId, type: 'opening' } as ActiveState;
+            console.log('🎬 Initialized to opening scene:', openingId);
+            
+            // Set in snapshot for immediate client sync
+            snapshot.activeState = this.current;
+            
+            // Reset timers
+            this.timers.showStart = Date.now();
+            this.timers.sceneStart = Date.now();
+            
+            // Persist this initial state
+            this.persist();
+            
+            // Broadcast to any connected clients
+            eventBus.emit("stateChanged", this.current);
+            console.log('✅ Emitted stateChanged event for opening scene');
+          } else {
+            // Fallback to first scene if no opening scene
+            const firstScene = nodeEntries.find(([_, node]) => node.type === 'scene');
+            if (firstScene) {
+              const firstId = firstScene[0];
+              this.current = { id: firstId, type: 'scene' } as ActiveState;
+              console.log('⚠️ No opening scene found, initialized to first scene:', firstId);
+              
+              snapshot.activeState = this.current;
+              this.timers.showStart = Date.now();
+              this.timers.sceneStart = Date.now();
+              this.persist();
+              eventBus.emit("stateChanged", this.current);
+            } else {
+              console.log('ℹ️ No opening or scene nodes found, state remains null');
+              snapshot.activeState = null;
+            }
+          }
         }
         console.log('✅ Successfully loaded show data from DB');
       } catch (showError) {
         console.log('ℹ️ No saved show data found in database');
         this.show = null;
-      }
-
-      if (this.current) {
-        // Verify the current state node exists in the restored graph
-        let nodeExists = false;
-        if (this.show?.nodes && this.show.nodes[this.current.id]) {
-          nodeExists = true;
-        } else if (this.show?.states && this.show.states.find((s: any) => s.id === this.current.id)) {
-          nodeExists = true;
-        }
-
-        if (nodeExists) {
-          // Also restore current state in the snapshot
-          const { snapshot } = require("./routes/audience");
-          snapshot.activeState = this.current;
-          console.log('✅ Restored current state in snapshot:', this.current);
-
-          eventBus.emit("stateChanged", this.current);
-          console.log('✅ Emitted stateChanged event for restored state:', this.current);
-        } else {
-          console.log('⚠️ Current state node does not exist in restored graph, clearing current state');
-          this.current = null;
-          const { snapshot } = require("./routes/audience");
-          snapshot.activeState = null;
-        }
-      } else {
-        console.log('ℹ️ No current state to restore');
       }
     } catch (error) {
       console.log('ℹ️ No saved state found');
@@ -285,17 +310,50 @@ export class Sequencer {
     // reset timers for fresh show
     this.timers.showStart = Date.now();
     this.timers.sceneStart = null;
-    // Handle both possible initial state locations
-    const initialStateId = show.metadata?.initialStateId || show.show?.initialStateId;
-    if (!initialStateId) {
-      throw new Error('No initial state ID found in show data');
+    
+    // Always prioritize opening scene as initial state
+    const nodeEntries = Object.entries(show.nodes);
+    const openingScene = nodeEntries.find(([_, node]) => node.type === 'opening');
+    
+    let initialStateId: string;
+    
+    if (openingScene) {
+      // Always use opening scene if it exists
+      initialStateId = openingScene[0];
+      console.log(`🎬 Starting show from opening scene: ${initialStateId}`);
+    } else {
+      // Fallback: try stored initialStateId, then first scene, then any node
+      const storedInitialStateId = show.metadata?.initialStateId || show.show?.initialStateId;
+      
+      if (storedInitialStateId && show.nodes[storedInitialStateId]) {
+        initialStateId = storedInitialStateId;
+        console.log(`⚠️ No opening scene found, using stored initial state: ${initialStateId}`);
+      } else {
+        console.warn(`⚠️ Invalid or missing initialStateId: ${storedInitialStateId}`);
+        
+        // Try to find any scene
+        const anyScene = nodeEntries.find(([_, node]) => node.type === 'scene');
+        if (anyScene) {
+          initialStateId = anyScene[0];
+          console.log(`✅ Using first scene: ${initialStateId}`);
+        } else {
+          // Use the first available node
+          if (nodeEntries.length > 0) {
+            initialStateId = nodeEntries[0][0];
+            console.log(`✅ Using first available node: ${initialStateId}`);
+          } else {
+            throw new Error('No nodes found in show data');
+          }
+        }
+      }
     }
-    if (!show.nodes[initialStateId]) {
-      throw new Error(`Initial state ${initialStateId} not found in nodes`);
-    }
+    
     this.current = { id: initialStateId, type: show.nodes[initialStateId].type } as ActiveState;
-    if (this.current.type === "scene") {
+    // Set scene timer for all display-oriented nodes (scene, opening, ending)
+    if (this.current.type === "scene" || this.current.type === "opening" || this.current.type === "ending") {
       this.timers.sceneStart = Date.now();
+    } else {
+      this.timers.sceneStart = null;
     }
     // Build simple graph format for conductor-client
     const states = Object.values(show.nodes).map((n, idx) => ({
@@ -439,7 +497,10 @@ export class Sequencer {
     // Send OSC message for initial scene/fork
     if (this.current) {
       const nodeName = this.getNodeName(this.current.id);
+      console.log('📡 Sending initial OSC message for loaded show...');
+      console.log('📡 Initial node type:', this.current.type, 'Node name:', nodeName);
       this.osc.stateChanged(this.current.type, nodeName);
+      console.log('📡 Initial OSC message sent');
     }
     
     eventBus.emit("showLoaded", { showId: "local" });
@@ -459,7 +520,9 @@ export class Sequencer {
     console.log('📍 Next ID computed:', nextId, 'from current:', this.current.id);
 
     if (nextId === this.current.id) {
-      console.log('⚠️ WARNING: Next ID is the same as current ID!');
+      console.log('⚠️ Cannot advance: No outgoing connections from current node or already at ending');
+      console.log('⚠️ Current node type:', this.current.type);
+      return;
     }
 
     this.advance(nextId);
@@ -498,17 +561,26 @@ export class Sequencer {
     this.current = { id: nextId, type: nodeType } as ActiveState;
     console.log('🔄 State changed from:', oldState, 'to:', this.current);
 
-    if (nodeType === "scene") {
+    // Reset scene timer for all display-oriented nodes (scene, opening, ending)
+    if (nodeType === "scene" || nodeType === "opening" || nodeType === "ending") {
       this.timers.sceneStart = Date.now();
+    } else {
+      // For fork nodes, keep the timer running (or set to null if undefined)
+      if (this.timers.sceneStart === undefined) {
+        this.timers.sceneStart = null;
+      }
     }
 
     this.persist();
     
     // OSC broadcast - get node name for the message
     const nodeName = this.getNodeName(nextId);
+    console.log('📡 About to send OSC message for state change...');
+    console.log('📡 Node type:', nodeType, 'Node name:', nodeName);
     this.osc.stateChanged(nodeType, nodeName);
+    console.log('📡 OSC stateChanged call completed');
 
-    console.log('📡 Broadcasting stateChanged event:', this.current);
+    console.log('📡 Broadcasting stateChanged event via WebSocket:', this.current);
     eventBus.emit("stateChanged", this.current);
   }
 
@@ -530,6 +602,17 @@ export class Sequencer {
     if (!this.show) {
       console.log('❌ No show data available');
       return currentId;
+    }
+    
+    // Verify snapshot graph is available (critical for finding connections)
+    const { snapshot } = require("./routes/audience");
+    if (!snapshot.graph || !snapshot.graph.connections) {
+      console.error('❌ CRITICAL: Snapshot graph not available for computeNext!');
+      console.error('❌ snapshot.graph exists:', !!snapshot.graph);
+      console.error('❌ snapshot.graph.connections exists:', !!snapshot.graph?.connections);
+      console.error('❌ This will prevent any state advancement!');
+    } else {
+      console.log('✅ Snapshot graph available with', snapshot.graph.connections.length, 'connections');
     }
 
     // Handle both old format (states array) and new format (nodes object)
@@ -556,11 +639,12 @@ export class Sequencer {
       return currentId;
     }
 
-    if (node.type === "scene") {
+    if (node.type === "scene" || node.type === "opening" || node.type === "ending") {
       // Use graph connections instead of node-level connections
+      // All these node types have single outgoing connections (except endings which have none)
       let nextId = currentId;
 
-      console.log('🎯 Scene node processing, looking up graph connections...');
+      console.log(`🎯 ${node.type} node processing, looking up graph connections...`);
       
       // Look up connections from the graph snapshot
       const { snapshot } = require("./routes/audience");
@@ -572,7 +656,7 @@ export class Sequencer {
       
       if (outgoingConnection) {
         nextId = outgoingConnection.toNodeId;
-        console.log('🎯 Scene node, using graph connection:', nextId, 'from connection:', outgoingConnection.id);
+        console.log(`🎯 ${node.type} node, using graph connection:`, nextId, 'from connection:', outgoingConnection.id);
 
         // Verify the target node exists in show data
         let targetExists = false;
@@ -591,7 +675,7 @@ export class Sequencer {
         }
 
       } else {
-        console.log('⚠️ Scene node has no outgoing connections in graph, staying at current:', currentId);
+        console.log(`⚠️ ${node.type} node has no outgoing connections in graph, staying at current:`, currentId);
         console.log('🔍 Graph connections from this node:', graphConnections.filter((c: any) => c.fromNodeId === currentId));
       }
 
@@ -665,10 +749,12 @@ export class Sequencer {
       console.log('💾 Persisting show data to DB:', {
         hasNodes: !!this.show.nodes,
         hasStates: !!this.show.states,
-        nodeCount: this.show.nodes ? Object.keys(this.show.nodes).length : (this.show.states ? this.show.states.length : 0)
+        hasConnections: !!this.show.connections,
+        nodeCount: this.show.nodes ? Object.keys(this.show.nodes).length : (this.show.states ? this.show.states.length : 0),
+        connectionCount: this.show.connections ? this.show.connections.length : 0
       });
       this.db.put("show", this.show)
-        .then(() => console.log('✅ Successfully persisted show data'))
+        .then(() => console.log('✅ Successfully persisted show data with', this.show.connections?.length || 0, 'connections'))
         .catch(error => console.error('❌ Failed to persist show data:', error));
     } else {
       console.log('💾 No show data to persist');
@@ -782,6 +868,81 @@ export class Sequencer {
     
     // Advance to the next state
     this.advance(nextStateId);
+  }
+
+  /**
+   * Reset to the opening scene (or initial state if no opening scene exists)
+   */
+  public reset(): void {
+    console.log('🔄 Resetting show to opening scene...');
+    
+    if (!this.show) {
+      console.error('❌ No show data loaded in sequencer');
+      throw new Error('No show data loaded');
+    }
+
+    // Always prioritize opening scene as initial state (same logic as loadShow)
+    const nodeEntries = Object.entries(this.show.nodes);
+    const openingScene = nodeEntries.find(([_, node]) => node.type === 'opening');
+    
+    let initialStateId: string;
+    
+    if (openingScene) {
+      // Always use opening scene if it exists
+      initialStateId = openingScene[0];
+      console.log(`🎬 Resetting to opening scene: ${initialStateId}`);
+    } else {
+      // Fallback: try stored initialStateId, then first scene, then any node
+      const storedInitialStateId = this.show.metadata?.initialStateId || this.show.show?.initialStateId;
+      
+      if (storedInitialStateId && this.show.nodes[storedInitialStateId]) {
+        initialStateId = storedInitialStateId;
+        console.log(`⚠️ No opening scene found, using stored initial state: ${initialStateId}`);
+      } else {
+        console.warn(`⚠️ Invalid or missing initialStateId: ${storedInitialStateId}`);
+        
+        // Try to find any scene
+        const anyScene = nodeEntries.find(([_, node]) => node.type === 'scene');
+        if (anyScene) {
+          initialStateId = anyScene[0];
+          console.log(`✅ Using first scene: ${initialStateId}`);
+        } else {
+          // Use the first available node
+          if (nodeEntries.length > 0) {
+            initialStateId = nodeEntries[0][0];
+            console.log(`✅ Using first available node: ${initialStateId}`);
+          } else {
+            throw new Error('No nodes found in show data');
+          }
+        }
+      }
+    }
+
+    // Set the current state to the initial state
+    this.current = { id: initialStateId, type: this.show.nodes[initialStateId].type } as ActiveState;
+
+    // Reset timers
+    this.timers.showStart = Date.now();
+    // Set scene timer for scene, opening, and ending nodes (all display-oriented nodes)
+    if (this.current.type === "scene" || this.current.type === "opening" || this.current.type === "ending") {
+      this.timers.sceneStart = Date.now();
+    } else {
+      this.timers.sceneStart = null;
+    }
+
+    // Persist the reset state
+    this.persist();
+
+    // Send OSC message for reset state
+    const nodeName = this.getNodeName(initialStateId);
+    console.log('📡 Sending OSC message for reset...');
+    console.log('📡 Reset node type:', this.current.type, 'Node name:', nodeName);
+    this.osc.stateChanged(this.current.type, nodeName);
+    console.log('📡 Reset OSC message sent');
+
+    // Broadcast the new state change
+    eventBus.emit("stateChanged", this.current);
+    console.log(`✅ Reset complete - Current state: ${initialStateId}`);
   }
 
   /**

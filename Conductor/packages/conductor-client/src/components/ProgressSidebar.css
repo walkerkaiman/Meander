@@ -47,6 +47,20 @@
   border-radius: 8px;
   font-weight: 500;
   color: #e0e0e0;
+  margin-bottom: 10px;
+}
+
+.scene-timer-display {
+  padding: 10px 12px;
+  background: linear-gradient(135deg, #0066cc, #0052a3);
+  border-radius: 8px;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #fff;
+  text-align: center;
+  letter-spacing: 1px;
+  box-shadow: 0 2px 8px rgba(0, 102, 204, 0.3);
 }
 
 .state-extra {

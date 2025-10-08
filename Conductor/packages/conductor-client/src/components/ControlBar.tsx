@@ -27,9 +27,6 @@ const ControlBar: React.FC = () => {
       >
         📱 QR Codes
       </button>
-      <div className="timers">
-        <span style={{marginLeft:'1rem'}}>Scene {fmt(sceneSeconds)}</span>
-      </div>
       <button
         className={`control-btn control-btn-advance ${isVoting && countdown !== null ? 'countdown-active' : ''}`}
         onClick={() => {

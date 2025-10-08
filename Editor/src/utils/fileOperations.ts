@@ -180,6 +180,50 @@ export class FileOperations {
     const packageName = `${projectData.show.showName.replace(/[^a-zA-Z0-9]/g, '_')}_${timestamp}`;
 
     try {
+      // Always prioritize opening scene as initial state
+      const openingScene = projectData.states.find(state => state.type === 'opening');
+      let initialStateId: string;
+      
+      if (openingScene) {
+        // Always use opening scene if it exists
+        initialStateId = openingScene.id;
+        if (projectData.show.initialStateId !== openingScene.id) {
+          console.log(`🎬 Setting initial state to opening scene: ${initialStateId}`);
+        }
+      } else {
+        // Fallback: use stored initialStateId if valid, otherwise first scene/node
+        const initialStateExists = projectData.states.some(
+          state => state.id === projectData.show.initialStateId
+        );
+        
+        if (initialStateExists) {
+          initialStateId = projectData.show.initialStateId;
+          console.log(`⚠️ No opening scene found, using stored initial state: ${initialStateId}`);
+        } else {
+          console.warn(`⚠️ Invalid initialStateId detected: ${projectData.show.initialStateId}`);
+          
+          const firstScene = projectData.states.find(state => state.type === 'scene');
+          if (firstScene) {
+            initialStateId = firstScene.id;
+            console.log(`✅ Using first scene: ${initialStateId}`);
+          } else if (projectData.states.length > 0) {
+            initialStateId = projectData.states[0].id;
+            console.log(`✅ Using first available node: ${initialStateId}`);
+          } else {
+            throw new Error('Cannot export: No states exist in the project');
+          }
+        }
+      }
+      
+      // Update projectData with the correct initialStateId
+      projectData = {
+        ...projectData,
+        show: {
+          ...projectData.show,
+          initialStateId: initialStateId
+        }
+      };
+
       // Dynamically import JSZip
       const JSZip = (await import('jszip')).default;
       const zip = new JSZip();

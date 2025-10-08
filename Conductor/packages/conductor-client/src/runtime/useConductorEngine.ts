@@ -90,27 +90,30 @@ export const useConductorEngine = create<EngineState>((set, get) => ({
       return;
     }
 
-    if (activeState.type === "scene" || activeState.type === "fork") {
-      console.log('📤 Making HTTP POST to /advance for', activeState.type, ':', activeState.id);
-      // Manual advance via REST call (works for both scenes and forks)
-      fetch(`http://${location.hostname}:4000/advance`, {
-        method: "POST",
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      })
-      .then(response => {
-        console.log('📥 Advance HTTP response:', response.status);
-        if (!response.ok) {
-          console.error('❌ Advance HTTP request failed:', response.status, response.statusText);
-        }
-      })
-      .catch(error => {
-        console.error('❌ Advance HTTP request error:', error);
-      });
-    } else {
-      console.log('❓ Unknown state type:', activeState.type);
-    }
+    console.log('📤 Making HTTP POST to /advance for', activeState.type, ':', activeState.id);
+    // Manual advance via REST call (works for all node types)
+    fetch(`http://${location.hostname}:4000/advance`, {
+      method: "POST",
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+    .then(response => {
+      console.log('📥 Advance HTTP response:', response.status);
+      if (!response.ok) {
+        console.error('❌ Advance HTTP request failed:', response.status, response.statusText);
+        return response.json().then(data => {
+          console.error('❌ Error details:', data);
+        }).catch(() => {
+          console.error('❌ Could not parse error response');
+        });
+      } else {
+        console.log('✅ Advance successful');
+      }
+    })
+    .catch(error => {
+      console.error('❌ Advance HTTP request error:', error);
+    });
   },
 
   // --- public start vote API used by UI ---

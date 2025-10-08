@@ -45,8 +45,11 @@ const serverPort = Number(config.SERVER_PORT);
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
-const sequencer = new Sequencer(config.DATA_DIR);
-const oscPublisher = new OscPublisher(Number(config.OSC_PORT));
+const oscPort = Number(config.OSC_PORT);
+const oscHost = config.OSC_HOST;
+const oscMulticast = config.OSC_MULTICAST === 'true';
+const sequencer = new Sequencer(config.DATA_DIR, oscPort, oscHost, oscMulticast);
+const oscPublisher = new OscPublisher(oscPort, oscHost, oscMulticast);
 
 // Generate Wi-Fi network configuration and QR code on startup
 const wifiNetwork = createWiFiNetworkConfig(config.WIFI_NETWORK_NAME, config.WIFI_PASSWORD);
@@ -138,16 +141,13 @@ app.get('/audience', (req, res) => {
   res.redirect('/audience-page/');
 });
 
-// Redirect conductor route to the conductor UI
-app.get('/conductor', (req, res) => {
-  // Always redirect to localhost since conductor UI is typically used locally
-  res.redirect('http://localhost:5173/');
-});
+// Serve built conductor client from root path (will be set up after all API routes)
 
 // QR Code page route
 app.get('/QR', async (req, res) => {
   try {
     const baseUrl = `http://${localIP}:${serverPort}`;
+    const conductorUrl = baseUrl; // Conductor client interface
     const audienceUrl = `${baseUrl}/audience-page`;
     const performerUrl = `${baseUrl}/performer-page`; // Future performer page
 
@@ -155,6 +155,15 @@ app.get('/QR', async (req, res) => {
     const nonce = require('crypto').randomBytes(16).toString('base64');
 
     // Generate QR codes as data URLs
+    const conductorQR = await QRCode.toDataURL(conductorUrl, {
+      width: 400,
+      margin: 2,
+      color: {
+        dark: '#000000',
+        light: '#FFFFFF'
+      }
+    });
+
     const audienceQR = await QRCode.toDataURL(audienceUrl, {
       width: 400,
       margin: 2,
@@ -343,6 +352,15 @@ app.get('/QR', async (req, res) => {
                 <div class="url-display">Network: ${wifiNetwork.ssid}</div>
             </div>
 
+            <div class="qr-section" data-url="${conductorUrl}">
+                <h2>🎛️ Conductor Control</h2>
+                <p>Click to open the conductor operator interface in a new tab, or scan the QR code to access from another device.</p>
+                <div class="qr-code">
+                    <img src="${conductorQR}" alt="Conductor Control QR Code">
+                </div>
+                <div class="url-display">${conductorUrl}</div>
+            </div>
+
             <div class="qr-section" data-url="${audienceUrl}">
                 <h2>🎭 Audience Page</h2>
                 <p>Click to open the audience voting interface in a new tab, or scan the QR code with your mobile device.</p>
@@ -526,25 +544,70 @@ app.get("/healthz", (_, res) => {
 
 // OSC test endpoint
 app.post("/test-osc", (_req, res) => {
-  console.log('🧪 Testing OSC messages...');
+  console.log('\n' + '='.repeat(70));
+  console.log('🧪 OSC TEST - Sending test messages...');
+  console.log('='.repeat(70));
+  
   oscPublisher.testMessage();
   oscPublisher.stateChanged("scene", "Test Scene");
+  oscPublisher.stateChanged("opening", "Test Opening");
   oscPublisher.forkCountdown("Test Fork", 5);
-  res.json({ success: true, message: "OSC test messages sent" });
+  
+  console.log('='.repeat(70));
+  console.log('✅ Test messages sent. Check your OSC listener for:');
+  console.log('   - /meander/test with "hello" and 123');
+  console.log('   - /test with "conductor-test"');
+  console.log('   - /test/simple with 999');
+  console.log('   - /test/string with message');
+  console.log('   - /meander/state with type and name');
+  console.log('   - /scene with "Test Scene"');
+  console.log('   - /opening with "Test Opening"');
+  console.log('   - /meander/countdown with fork name and seconds');
+  console.log('='.repeat(70) + '\n');
+  
+  res.json({ 
+    success: true, 
+    message: "OSC test messages sent - check console for details",
+    config: {
+      host: oscHost,
+      port: oscPort,
+      protocol: 'UDP',
+      messages: [
+        '/meander/test',
+        '/test',
+        '/test/simple',
+        '/test/string',
+        '/meander/state',
+        '/scene',
+        '/opening',
+        '/meander/countdown'
+      ]
+    }
+  });
+});
+
+// OSC configuration info endpoint
+app.get("/osc-config", (_req, res) => {
+  res.json({
+    host: oscHost,
+    port: oscPort,
+    receivePort: oscPort + 1,
+    info: "OSC messages are broadcast to this host and port. Listeners should listen on this port."
+  });
 });
 
 // Manual advance endpoint
 app.post("/advance", (_req, res) => {
   console.log('🔄 ADVANCE REQUEST RECEIVED');
-  console.log('Current state before advance:', sequencer.current);
-  console.log('Show data available:', !!sequencer.show);
-  console.log('Show nodes available:', sequencer.show ? Object.keys(sequencer.show.nodes || {}).length : 'no show');
-
-  sequencer.manualAdvance();
-
-  console.log('New state after advance:', sequencer.current);
-  console.log('✅ Advance request completed');
-  res.status(202).end();
+  
+  try {
+    sequencer.manualAdvance();
+    console.log('✅ Advance request completed');
+    res.status(202).json({ success: true });
+  } catch (error) {
+    console.error('❌ Advance request failed:', error);
+    res.status(500).json({ success: false, error: error instanceof Error ? error.message : 'Unknown error' });
+  }
 });
 
 // Reload show endpoint for testing
@@ -568,73 +631,16 @@ app.post("/reload", (_req, res) => {
   }
 });
 
-// Reset endpoint - sets state to Opening scene
+// Reset endpoint - resets to the opening scene
 app.post("/reset", (_req, res) => {
-  console.log('🔄 RESET REQUEST RECEIVED - Setting to Opening scene');
+  console.log('🔄 RESET REQUEST RECEIVED - Resetting to opening scene');
   try {
-    // Get the initial state ID from the show data
-    const showFilePath = path.join(PROJECT_ROOT, "CurrentProject", "show.json");
-    console.log('🔄 Looking for show.json at:', showFilePath);
-
-    if (fs.existsSync(showFilePath)) {
-      console.log('✅ show.json file exists');
-      let showData;
-      try {
-        const rawData = fs.readFileSync(showFilePath, 'utf8');
-        console.log('✅ Read file successfully, parsing JSON...');
-        showData = JSON.parse(rawData);
-        console.log('✅ JSON parsed successfully');
-      } catch (parseError) {
-        console.error('❌ JSON parse error:', parseError);
-        return res.status(500).json({ error: 'Invalid show.json format' });
-      }
-
-      // Find the initial state ID (Opening scene)
-      let initialStateId = showData.show?.initialStateId;
-      console.log('🔍 initialStateId from show.show:', initialStateId);
-
-      if (!initialStateId && showData.states && showData.states.length > 0) {
-        console.log('🔄 No initialStateId found, looking for first scene...');
-        // Fallback to first scene if no initialStateId
-        const openingScene = showData.states.find((s: any) => s.type === 'scene');
-        if (openingScene) {
-          initialStateId = openingScene.id;
-          console.log('✅ Found opening scene:', initialStateId);
-        } else {
-          console.log('❌ No scene found in states array');
-        }
-      }
-
-      if (initialStateId) {
-        console.log('🎯 Resetting to initial state:', initialStateId);
-        try {
-          sequencer.resetToState(initialStateId);
-          console.log('✅ Reset to Opening scene successful');
-          res.status(200).json({ success: true, message: 'Reset to Opening scene successful' });
-        } catch (resetError) {
-          console.error('❌ Sequencer reset error:', resetError);
-          res.status(500).json({ error: 'Failed to reset sequencer state' });
-        }
-      } else {
-        console.log('❌ No initial state found in show data');
-        console.log('🔍 Show data structure:', {
-          hasShow: !!showData.show,
-          hasStates: !!showData.states,
-          statesCount: showData.states?.length || 0,
-          states: showData.states?.map((s: any) => ({ id: s.id, type: s.type })) || []
-        });
-        res.status(404).json({ error: 'No initial state found' });
-      }
-    } else {
-      console.log('❌ show.json file not found at:', showFilePath);
-      console.log('🔍 Current directory:', process.cwd());
-      console.log('🔍 PROJECT_ROOT:', PROJECT_ROOT);
-      res.status(404).json({ error: 'show.json not found' });
-    }
-  } catch (error) {
-    console.error('❌ Failed to reset show:', error);
-    console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');
-    res.status(500).json({ error: 'Failed to reset show' });
+    sequencer.reset();
+    console.log('✅ Reset to opening scene successful');
+    res.status(200).json({ success: true, message: 'Reset to opening scene successful' });
+  } catch (resetError: any) {
+    console.error('❌ Reset error:', resetError);
+    res.status(500).json({ error: resetError?.message ?? 'Failed to reset sequencer state' });
   }
 });
 
@@ -722,10 +728,19 @@ function startVote(forkId: string) {
 
 // WebSocket connection handler
 wss.on("connection", (ws) => {
-  // Immediately send current state if available
+  console.log('🔌 New WebSocket connection established');
+  
+  // Immediately send current show and state if available
+  if (snapshot.graph) {
+    console.log('📤 Sending showLoaded to new client');
+    ws.send(JSON.stringify({ type: "showLoaded", payload: { showId: "local" } }));
+  }
+  
   if (snapshot.activeState) {
+    console.log('📤 Sending current activeState to new client:', snapshot.activeState);
     ws.send(JSON.stringify({ type: "stateChanged", payload: snapshot.activeState }));
   }
+  
   ws.on("message", (data) => {
     try {
       const msg = JSON.parse(data.toString());
@@ -764,12 +779,69 @@ serverEventBus.on("showLoaded", (payload) => {
 
 serverEventBus.on("validationError", (payload) => broadcast({ type: "validationError", payload }));
 
+// Serve built conductor client from root path
+const conductorClientPath = path.join(__dirname, '../../conductor-client/dist');
+console.log('📂 Serving conductor client from:', conductorClientPath);
+
+// Serve static files from conductor client dist
+app.use(express.static(conductorClientPath, {
+  setHeaders: (res, filePath) => {
+    // Set CSP for conductor client HTML files
+    if (filePath.endsWith('.html')) {
+      res.setHeader('Content-Security-Policy', 
+        "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws: wss: http: https:; font-src 'self' data:;"
+      );
+    }
+  }
+}));
+
+// Fallback route for SPA - serve index.html for any unmatched routes
+app.get('*', (req, res) => {
+  console.log('📄 Serving conductor client index.html for path:', req.path);
+  res.sendFile(path.join(conductorClientPath, 'index.html'));
+});
+
 // Start server
 server.listen(Number(config.SERVER_PORT), "0.0.0.0", () => {
-  console.log(`Conductor server listening on :${config.SERVER_PORT}`);
-  console.log(`📊 Show data persistence: ${config.DATA_DIR}/db/current`);
-  console.log(`🌐 QR Codes page: http://${localIP}:${serverPort}/QR`);
-  console.log(`🎭 Audience page: http://${localIP}:${serverPort}/audience-page`);
-  console.log(`🎪 Performer page: http://${localIP}:${serverPort}/performer-page (coming soon)`);
-  console.log(`📶 Wi-Fi QR Code: Enabled for network "${wifiNetwork.ssid}"`);
+  console.log(`\n${'='.repeat(70)}`);
+  console.log(`🎯 MEANDER Conductor Server Started`);
+  console.log(`${'='.repeat(70)}\n`);
+  
+  console.log(`📊 Server Configuration:`);
+  console.log(`   HTTP/WebSocket: 0.0.0.0:${config.SERVER_PORT}`);
+  console.log(`   Data Storage: ${config.DATA_DIR}/db/current`);
+  
+  console.log(`\n📡 OSC Configuration:`);
+  console.log(`   Sending to: ${oscHost}:${oscPort}`);
+  console.log(`   Mode: ${oscMulticast ? 'MULTICAST' : 'UNICAST/BROADCAST'}`);
+  
+  if (oscMulticast) {
+    console.log(`\n   📻 MULTICAST MODE ENABLED`);
+    console.log(`   Multicast Group: ${oscHost}`);
+    console.log(`   Port: ${oscPort}`);
+    console.log(`\n   ⚠️  Your OSC listeners MUST:`);
+    console.log(`       1. Join multicast group: ${oscHost}`);
+    console.log(`       2. Listen on UDP port: ${oscPort}`);
+    console.log(`\n   💡 How to configure your OSC listener:`);
+    console.log(`       - Set to receive MULTICAST messages`);
+    console.log(`       - Multicast address: ${oscHost}`);
+    console.log(`       - Port: ${oscPort}`);
+    console.log(`       - Some apps call this "Multicast Group" or "Group Address"`);
+  } else {
+    console.log(`   Protocol: UDP ${oscHost.includes('255') ? 'Broadcast' : 'Unicast'}`);
+    console.log(`   ⚠️  Your OSC listener must:`);
+    console.log(`       - Listen on UDP port ${oscPort}`);
+    console.log(`       - Accept ${oscHost.includes('255') ? 'broadcast' : 'unicast'} messages`);
+  }
+  
+  console.log(`\n   🧪 Test endpoint: POST http://${localIP}:${serverPort}/test-osc`);
+  
+  console.log(`\n🌐 Access URLs:`);
+  console.log(`   🎛️  Conductor Control: http://${localIP}:${serverPort}/`);
+  console.log(`   🎭 Audience page: http://${localIP}:${serverPort}/audience-page`);
+  console.log(`   📱 QR Codes page: http://${localIP}:${serverPort}/QR`);
+  console.log(`   🎪 Performer page: http://${localIP}:${serverPort}/performer-page (coming soon)`);
+  
+  console.log(`\n📶 Wi-Fi Network: "${wifiNetwork.ssid}"`);
+  console.log(`\n${'='.repeat(70)}\n`);
 });

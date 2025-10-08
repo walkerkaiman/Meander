@@ -298,10 +298,46 @@ export const EditorLayout: React.FC<EditorLayoutProps> = ({
         }
       });
 
+    // Always prioritize opening scene as initial state
+    const openingScene = updatedStates.find(state => state.type === 'opening');
+    let updatedInitialStateId: string;
+    
+    if (openingScene) {
+      // Always use opening scene if it exists
+      updatedInitialStateId = openingScene.id;
+      if (nodeId === projectData.show.initialStateId) {
+        console.log(`🎬 Deleted initial state, updated to opening scene: ${updatedInitialStateId}`);
+      }
+    } else {
+      // Only update if the deleted node was the initial state
+      if (nodeId === projectData.show.initialStateId) {
+        // Fallback: use first scene or any remaining node
+        const firstScene = updatedStates.find(state => state.type === 'scene');
+        if (firstScene) {
+          updatedInitialStateId = firstScene.id;
+          console.log(`🔄 Updated initialStateId to first scene: ${updatedInitialStateId}`);
+        } else if (updatedStates.length > 0) {
+          updatedInitialStateId = updatedStates[0].id;
+          console.log(`🔄 Updated initialStateId to first available node: ${updatedInitialStateId}`);
+        } else {
+          // No nodes left - this shouldn't happen in practice, but handle it
+          updatedInitialStateId = projectData.show.initialStateId;
+          console.warn('⚠️ No nodes left to set as initialStateId');
+        }
+      } else {
+        // Keep existing initialStateId if it wasn't deleted
+        updatedInitialStateId = projectData.show.initialStateId;
+      }
+    }
+
     const updatedProject = {
       ...projectData,
       states: updatedStates,
-      connections: updatedConnections
+      connections: updatedConnections,
+      show: {
+        ...projectData.show,
+        initialStateId: updatedInitialStateId
+      }
     };
 
     onUpdateProject(updatedProject);

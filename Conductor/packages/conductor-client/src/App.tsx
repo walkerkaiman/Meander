@@ -4,6 +4,7 @@ import Canvas from './components/Canvas';
 import ProgressSidebar from './components/ProgressSidebar';
 import ControlBar from './components/ControlBar';
 import MenuBar from './components/MenuBar';
+import MobileView from './components/MobileView';
 import './App.css';
 
 import { useConductorSocket } from "./hooks/useConductorSocket";
@@ -12,6 +13,19 @@ import { useInitialState } from "./hooks/useInitialState";
 function App() {
   const { showData, setShow } = useShowStore();
   const [isLoading, setIsLoading] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Detect mobile screen size
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   useEffect(() => {
     // Simulate loading show data on mount
@@ -40,6 +54,12 @@ function App() {
     return <div className="loading">Loading show data...</div>;
   }
 
+  // Show mobile view on small screens
+  if (isMobile) {
+    return <MobileView />;
+  }
+
+  // Show desktop view on larger screens
   return (
     <div className="app-container">
       <MenuBar />

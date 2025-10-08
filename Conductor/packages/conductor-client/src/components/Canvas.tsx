@@ -20,12 +20,9 @@ const Canvas: React.FC = () => {
   React.useEffect(() => {
     console.log('🎨 Canvas received activeState update:', activeState);
     console.log('🎨 Canvas showData states:', showData?.states?.length || 0);
-    // Force a re-render by updating counter
-    setUpdateCounter(prev => prev + 1);
   }, [activeState, showData]);
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
-  const [updateCounter, setUpdateCounter] = useState(0);
 
   if (!showData) {
     return <div className="canvas">No show data loaded</div>;
@@ -58,9 +55,7 @@ const Canvas: React.FC = () => {
       },
       position: position,
       draggable: false,
-      selectable: false,
-      // Force re-render by including activeState in key
-      key: `${state.id}-${activeState?.id || 'none'}-${updateCounter}`
+      selectable: false
     };
 
     console.log(`🎨 Node ${state.id} data.isCurrent:`, nodeData.data.isCurrent);
@@ -143,7 +138,7 @@ const Canvas: React.FC = () => {
 
       // No automatic fitView - preserve user's zoom/pan settings
     }
-  }, [reactFlowInstance, activeState, nodes, edges, updateCounter]);
+  }, [reactFlowInstance, activeState, nodes, edges]);
 
   // ======== DEBUGGING HOOKS ========
   // debug logging removed
@@ -161,7 +156,6 @@ const Canvas: React.FC = () => {
   return (
     <div className="canvas" ref={reactFlowWrapper} style={{ width: '100%', height: '100%' }}>
       <ReactFlow
-        key={`reactflow-${activeState?.id || 'none'}-${updateCounter}`}
         nodes={nodes}
         edges={edges}
         onInit={onLoad}

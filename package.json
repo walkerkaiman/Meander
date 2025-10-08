@@ -1,0 +1,24 @@
+{
+  "name": "meander",
+  "version": "1.0.0",
+  "description": "MEANDER - Choose-Your-Own-Adventure Platform",
+  "private": true,
+  "scripts": {
+    "Editor": "cd Editor && npm run dev",
+    "Conductor": "cd Conductor && pnpm run conductor",
+    "editor": "npm run Editor",
+    "conductor": "npm run Conductor",
+    "build:editor": "cd Editor && npm run build",
+    "build:conductor": "cd Conductor && pnpm run build",
+    "build": "npm run build:editor && npm run build:conductor"
+  },
+  "keywords": [
+    "interactive",
+    "theater",
+    "choose-your-own-adventure",
+    "audience-participation"
+  ],
+  "author": "",
+  "license": "MIT"
+}
+

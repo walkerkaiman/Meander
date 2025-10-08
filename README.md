@@ -1,13 +1,14 @@
 <div align="center">
 
 # MEANDER
-## Interactive Theatrical Choose-Your-Own-Adventure Platform
+
+## Choose-Your-Own-Adventure Platform
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://reactjs.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-43853D?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
 
-*Where every performance is unique, and every audience shapes the story.*
+_Where every performance is unique, and every audience shapes the story._
 
 [Quick Start](#quick-start) • [Documentation](#platform-overview) • [Editor](#editor) • [Conductor](#conductor) • [Audience](#audience)
 
@@ -30,7 +31,7 @@ MEANDER enables creators to build branching narratives where audience members us
 <td align="center" width="33%">
 
 **EDITOR**  
-*Visual Story Creation*
+_Visual Story Creation_
 
 - Node-based editor
 - Media integration
@@ -41,7 +42,7 @@ MEANDER enables creators to build branching narratives where audience members us
 <td align="center" width="33%">
 
 **CONDUCTOR**  
-*Runtime Engine & Control*
+_Runtime Engine & Control_
 
 - Show execution
 - Vote management
@@ -52,7 +53,7 @@ MEANDER enables creators to build branching narratives where audience members us
 <td align="center" width="33%">
 
 **AUDIENCE**  
-*Mobile Voting Interface*
+_Mobile Voting Interface_
 
 - QR code access
 - Fullscreen media
@@ -74,6 +75,7 @@ graph LR
 ---
 
 ## Editor
+
 **Visual Story Creation & Show Design**
 
 > **Purpose**: Create interactive theatrical experiences with visual node-based editing
@@ -82,24 +84,24 @@ The Editor is a powerful visual tool for creating interactive theatrical experie
 
 ### Key Features
 
-| Feature | Description |
-|---------|-------------|
-| **Visual Node Editor** | Drag-and-drop interface for intuitive story creation |
-| **Multiple Node Types** | Scenes, Forks, Opening, and Ending nodes |
-| **Media Integration** | Upload images and videos for audience displays |
-| **Real-time Validation** | Ensures story structure integrity |
-| **Package Export** | Creates self-contained ZIP files with all assets |
+| Feature                  | Description                                          |
+| ------------------------ | ---------------------------------------------------- |
+| **Visual Node Editor**   | Drag-and-drop interface for intuitive story creation |
+| **Multiple Node Types**  | Scenes, Forks, Opening, and Ending nodes             |
+| **Media Integration**    | Upload images and videos for audience displays       |
+| **Real-time Validation** | Ensures story structure integrity                    |
+| **Package Export**       | Creates self-contained ZIP files with all assets     |
 
 ### Node Types
 
 <div align="center">
 
-| Node Type | Description | Connections |
-|-----------|-------------|-------------|
-| **Opening Scene** | Story starting point | No inputs, 1 output |
-| **Regular Scene** | Main story content | 1 input, 1 output |
-| **Fork/Choice** | Audience voting points | 1 input, multiple outputs |
-| **Ending Scene** | Story conclusion | 1 input, no outputs |
+| Node Type         | Description            | Connections               |
+| ----------------- | ---------------------- | ------------------------- |
+| **Opening Scene** | Story starting point   | No inputs, 1 output       |
+| **Regular Scene** | Main story content     | 1 input, 1 output         |
+| **Fork/Choice**   | Audience voting points | 1 input, multiple outputs |
+| **Ending Scene**  | Story conclusion       | 1 input, no outputs       |
 
 </div>
 
@@ -148,7 +150,7 @@ npm run preview
 <summary><b>Usage Workflow</b></summary>
 
 1. **Create New Show**: Opening scene added automatically
-2. **Add Content**: Type descriptions - nodes resize automatically  
+2. **Add Content**: Type descriptions - nodes resize automatically
 3. **Create Branches**: Use Fork nodes, add choices, connect to scenes
 4. **Add Media**: Upload images/videos for audience displays
 5. **Validate**: Check story structure with built-in validator
@@ -159,6 +161,7 @@ npm run preview
 ---
 
 ## Conductor
+
 **Runtime Engine & Performance Control**
 
 > **Purpose**: Manage live performances with real-time audience interaction and external system integration
@@ -169,14 +172,14 @@ The Conductor manages live performances, handling show execution, audience votin
 
 <div align="center">
 
-| Feature | Description | Technology |
-|---------|-------------|------------|
-| **Show Execution** | Loads and runs show packages from Editor | Node.js + Express |
-| **Audience Voting** | Real-time vote collection and processing | WebSocket + REST API |
-| **OSC Broadcasting** | Integration with lighting, sound, and other systems | UDP + OSC protocol |
-| **Visual Control** | Node graph interface matching Editor design | React + React Flow |
-| **QR Code Generation** | Easy audience access via mobile devices | QRCode library |
-| **State Management** | Persistent show state with error recovery | LevelDB |
+| Feature                | Description                                         | Technology           |
+| ---------------------- | --------------------------------------------------- | -------------------- |
+| **Show Execution**     | Loads and runs show packages from Editor            | Node.js + Express    |
+| **Audience Voting**    | Real-time vote collection and processing            | WebSocket + REST API |
+| **OSC Broadcasting**   | Integration with lighting, sound, and other systems | UDP + OSC protocol   |
+| **Visual Control**     | Node graph interface matching Editor design         | React + React Flow   |
+| **QR Code Generation** | Easy audience access via mobile devices             | QRCode library       |
+| **State Management**   | Persistent show state with error recovery           | LevelDB              |
 
 </div>
 
@@ -190,7 +193,7 @@ graph TB
         C[Audience Page<br/>Mobile Interface]
         D[Shared Packages<br/>Types + Validation]
     end
-    
+
     A <--> B
     A <--> C
     A <--> D
@@ -257,18 +260,19 @@ pnpm run start
 <details>
 <summary><b>Network Configuration</b></summary>
 
-| Service | Port | Protocol | Purpose |
-|---------|------|----------|---------|
-| **Server** | 4000 | HTTP/WebSocket | Audience voting & API |
-| **OSC** | 57121 | UDP | External system integration |
-| **Network** | 0.0.0.0 | All interfaces | Local network access |
-| **QR Codes** | Auto | HTTP | Mobile device access |
+| Service      | Port    | Protocol       | Purpose                     |
+| ------------ | ------- | -------------- | --------------------------- |
+| **Server**   | 4000    | HTTP/WebSocket | Audience voting & API       |
+| **OSC**      | 57121   | UDP            | External system integration |
+| **Network**  | 0.0.0.0 | All interfaces | Local network access        |
+| **QR Codes** | Auto    | HTTP           | Mobile device access        |
 
 </details>
 
 ---
 
 ## Audience
+
 **Mobile Voting Interface**
 
 > **Purpose**: Enable audience participation through mobile devices with real-time voting and media display
@@ -279,14 +283,14 @@ The Audience component provides a mobile-optimized interface for audience member
 
 <div align="center">
 
-| Feature | Description | Benefit |
-|---------|-------------|---------|
-| **QR Code Access** | Easy mobile device connection | No typing URLs |
-| **Fullscreen Media** | Images and videos with smooth transitions | Immersive experience |
-| **Real-time Voting** | Interactive choice selection with countdown timers | Engaging participation |
-| **Mobile Optimized** | Responsive design for all screen sizes | Universal compatibility |
-| **Auto-reconnection** | Robust WebSocket connection handling | Reliable performance |
-| **Accessibility** | Screen reader support and keyboard navigation | Inclusive design |
+| Feature               | Description                                        | Benefit                 |
+| --------------------- | -------------------------------------------------- | ----------------------- |
+| **QR Code Access**    | Easy mobile device connection                      | No typing URLs          |
+| **Fullscreen Media**  | Images and videos with smooth transitions          | Immersive experience    |
+| **Real-time Voting**  | Interactive choice selection with countdown timers | Engaging participation  |
+| **Mobile Optimized**  | Responsive design for all screen sizes             | Universal compatibility |
+| **Auto-reconnection** | Robust WebSocket connection handling               | Reliable performance    |
+| **Accessibility**     | Screen reader support and keyboard navigation      | Inclusive design        |
 
 </div>
 
@@ -304,11 +308,11 @@ The Audience component provides a mobile-optimized interface for audience member
 <details>
 <summary><b>Access Methods</b></summary>
 
-| Method | URL | Use Case |
-|--------|-----|----------|
-| **QR Code** | Scan from Conductor UI | Easiest for audience |
-| **Direct URL** | `http://[server-ip]:4000/audience-page` | Manual entry |
-| **QR Page** | `http://[server-ip]:4000/QR` | Display all QR codes |
+| Method         | URL                                     | Use Case             |
+| -------------- | --------------------------------------- | -------------------- |
+| **QR Code**    | Scan from Conductor UI                  | Easiest for audience |
+| **Direct URL** | `http://[server-ip]:4000/audience-page` | Manual entry         |
+| **QR Page**    | `http://[server-ip]:4000/QR`            | Display all QR codes |
 
 </details>
 
@@ -337,18 +341,21 @@ pnpm run conductor:audience
 ---
 
 ## Performer (Coming Soon)
+
 **Specialized Performer Interface**
 
 The Performer component will provide a specialized interface for performers with access to vote results, performance cues, and backstage information.
 
 ### Planned Features
+
 - **Vote Results**: Real-time access to audience voting data
 - **Performance Cues**: Visual/audio cues based on story progression
 - **Backstage Info**: Performer-specific information and notes
 - **Timing Information**: Scene duration and transition cues
 
 ### Setup Guide
-*Coming soon - placeholder route available at `/performer-page`*
+
+_Coming soon - placeholder route available at `/performer-page`_
 
 ---
 
@@ -357,29 +364,31 @@ The Performer component will provide a specialized interface for performers with
 ### Complete Setup (All Components)
 
 1. **Clone Repository**
+
    ```bash
    git clone https://github.com/walkerkaiman/Meander.git
    cd Meander
    ```
 
 2. **Setup Editor**
+
    ```bash
-   cd Editor
-   npm install
-   npm run dev
+   cd Editor && npm install && cd ..
+   pnpm run Editor
    # Create your show at http://localhost:5173
    ```
 
 3. **Setup Conductor**
+
    ```bash
-   cd Conductor
-   pnpm install
-   pnpm run conductor
+   cd Conductor && pnpm install && cd ..
+   pnpm run Conductor
    # Server: http://localhost:4000
    # Client: http://localhost:5173
    ```
 
 4. **Load Show**
+
    - Export show from Editor
    - Upload ZIP file in Conductor Client
    - Click "QR Codes" for audience access
@@ -388,6 +397,40 @@ The Performer component will provide a specialized interface for performers with
    - Scan QR code with mobile device
    - Ensure device is on same network
    - Start voting and enjoying the show!
+
+---
+
+## Running the Applications
+
+> **Important**: Run these commands from the root `Meander` directory (not from inside `Editor` or `Conductor`).
+
+Choose the application based on your task:
+
+### Creating Shows (Editor)
+
+```bash
+# From D:\Meander directory
+pnpm run Editor
+```
+Opens at http://localhost:5173 - Use this to design and export show packages.
+
+### Running Shows (Conductor)
+
+```bash
+# From D:\Meander directory
+pnpm run Conductor
+```
+Starts the performance system:
+- **Server**: http://localhost:4000 (audience voting)
+- **Client**: http://localhost:5173 (operator controls)
+
+### First Time Setup
+
+Install dependencies before first use:
+```bash
+cd Editor && npm install && cd ..
+cd Conductor && pnpm install && cd ..
+```
 
 ---
 
@@ -411,12 +454,14 @@ MEANDER is designed for **local network deployment** during performances:
 ```
 
 ### Network Requirements
+
 - **TCP Port 4000**: HTTP/WebSocket (audience voting)
 - **UDP Port 57121**: OSC (external systems)
 - **Local Network**: All devices on same subnet
 - **No Internet**: Performance works offline
 
 ### Wi-Fi QR Code Feature
+
 - **QR Code Page**: Visit `http://[server-ip]:4000/QR` to access QR codes
 - **Wi-Fi Network**: Automatically generates QR code for configured network
 - **Configuration**: Set `WIFI_NETWORK_NAME` and `WIFI_PASSWORD` in `config.env`
@@ -427,12 +472,14 @@ MEANDER is designed for **local network deployment** during performances:
 ## Testing
 
 ### End-to-End Tests
+
 ```bash
 cd Conductor
 pnpm run test:e2e
 ```
 
 ### Test Coverage
+
 - **Conductor UI**: Basic functionality and show management
 - **Audience Voting**: Mobile interface and voting interactions
 - **Full Journey**: Complete show execution workflow
@@ -465,6 +512,7 @@ Meander/
 ## Development
 
 ### Technology Stack
+
 - **Frontend**: React, TypeScript, Vite
 - **Backend**: Node.js, Express, WebSocket
 - **Database**: LevelDB (embedded)
@@ -473,6 +521,7 @@ Meander/
 - **Build Tools**: TypeScript, Vite, tsup
 
 ### Code Style
+
 - **TypeScript**: Complete type safety throughout
 - **ESLint**: Consistent code formatting
 - **Prettier**: Code style enforcement

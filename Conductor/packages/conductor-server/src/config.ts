@@ -13,6 +13,8 @@ const configSchema = z.object({
   // Server configuration
   SERVER_PORT: z.string().default("4000"),
   OSC_PORT: z.string().default("57121"),
+  OSC_HOST: z.string().default("239.0.0.1"), // Multicast group address
+  OSC_MULTICAST: z.string().default("true"), // Use multicast (true) or unicast/broadcast (false)
   DATA_DIR: z.string().default(`${require("os").homedir()}/.meander`),
   LOG_LEVEL: z.string().default("info"),
 });
@@ -26,6 +28,8 @@ export const {
   WIFI_PASSWORD,
   SERVER_PORT,
   OSC_PORT,
+  OSC_HOST,
+  OSC_MULTICAST,
   DATA_DIR,
   LOG_LEVEL,
 } = config;

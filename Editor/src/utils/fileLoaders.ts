@@ -62,8 +62,44 @@ export async function loadExportedShow(file: File): Promise<ProjectData | null> 
 
     console.log(`Found ${states.length} states/nodes`);
 
+    // Always prioritize opening scene as initial state
+    const openingScene = states.find(s => s.type === 'opening');
+    let initialStateId: string;
+    
+    if (openingScene) {
+      // Always use opening scene if it exists
+      initialStateId = openingScene.id;
+      console.log(`🎬 Setting initial state to opening scene: ${initialStateId}`);
+    } else {
+      // Fallback: try stored initialStateId, then first scene, then any node
+      const storedInitialStateId = exportData.show?.initialStateId;
+      const stateIds = states.map(s => s.id);
+      
+      if (storedInitialStateId && stateIds.includes(storedInitialStateId)) {
+        initialStateId = storedInitialStateId;
+        console.log(`⚠️ No opening scene found, using stored initial state: ${initialStateId}`);
+      } else {
+        console.warn(`⚠️ Invalid or missing initialStateId: ${storedInitialStateId}`);
+        
+        // Try to find any scene
+        const anyScene = states.find(s => s.type === 'scene');
+        if (anyScene) {
+          initialStateId = anyScene.id;
+          console.log(`✅ Using first scene: ${initialStateId}`);
+        } else if (states.length > 0) {
+          initialStateId = states[0].id;
+          console.log(`✅ Using first available node: ${initialStateId}`);
+        } else {
+          throw new Error('No states found in show data');
+        }
+      }
+    }
+
     const projectData: ProjectData = {
-      show: exportData.show,
+      show: {
+        ...exportData.show,
+        initialStateId: initialStateId
+      },
       states: states.map((state: any) => ({
         ...state,
         audienceMedia: (state.audienceMedia || []).map((media: any) => ({
