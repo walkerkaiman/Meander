@@ -263,9 +263,125 @@ pnpm run start
 | Service      | Port    | Protocol       | Purpose                     |
 | ------------ | ------- | -------------- | --------------------------- |
 | **Server**   | 4000    | HTTP/WebSocket | Audience voting & API       |
-| **OSC**      | 57121   | UDP            | External system integration |
+| **OSC**      | 57121   | UDP Multicast  | External system integration |
 | **Network**  | 0.0.0.0 | All interfaces | Local network access        |
 | **QR Codes** | Auto    | HTTP           | Mobile device access        |
+
+</details>
+
+<details>
+<summary><b>OSC Integration Setup</b></summary>
+
+### Overview
+
+MEANDER Conductor broadcasts OSC (Open Sound Control) messages to integrate with external systems like lighting controllers, sound systems, video playback software, and show control systems.
+
+### Quick Setup
+
+**Configuration File:** `Conductor/packages/conductor-server/config.env`
+
+```env
+OSC_PORT=57121              # UDP port for OSC messages
+OSC_HOST=239.0.0.1          # Multicast group address
+OSC_MULTICAST=true          # Use multicast mode
+```
+
+### OSC Listener Configuration
+
+Configure your OSC receiver (lighting desk, QLab, etc.) with:
+
+| Setting              | Value           | Description                        |
+| -------------------- | --------------- | ---------------------------------- |
+| **Protocol**         | UDP             | User Datagram Protocol             |
+| **Mode**             | Multicast       | IP Multicast (not broadcast)       |
+| **Multicast Group**  | `239.0.0.1`     | Join this multicast group          |
+| **Port**             | `57121`         | Listen on this port                |
+| **Local IP**         | `0.0.0.0`       | Receive on all network interfaces  |
+
+### OSC Message Format
+
+#### State Change Messages
+
+**Address:** `/meander/state`
+
+**Arguments:**
+1. Node type (string): `"scene"`, `"fork"`, `"opening"`, or `"ending"`
+2. Node name (string): Title of the current node
+
+**Example:**
+```
+/meander/state "opening" "Welcome Scene"
+/meander/state "fork" "Choose Your Path"
+/meander/state "scene" "Forest Adventure"
+```
+
+#### Fork Countdown Messages
+
+**Address:** `/meander/countdown`
+
+**Arguments:**
+1. Fork name (string): Title of the fork node
+2. Countdown (integer): Remaining seconds
+
+**Example:**
+```
+/meander/countdown "Choose Your Path" 15
+/meander/countdown "Choose Your Path" 14
+/meander/countdown "Choose Your Path" 13
+...
+```
+
+### Message Filtering
+
+To filter for specific message types in your OSC software:
+
+| Filter Pattern      | Receives                           |
+| ------------------- | ---------------------------------- |
+| `/meander/*`        | All MEANDER messages               |
+| `/meander/state`    | State changes only                 |
+| `/meander/countdown`| Fork countdowns only               |
+
+### Testing OSC
+
+**Test Endpoint:** `POST http://[server-ip]:4000/test-osc`
+
+**PowerShell:**
+```powershell
+Invoke-WebRequest -Uri http://localhost:4000/test-osc -Method POST
+```
+
+**Expected test message:**
+- Address: `/meander/test`
+- Args: `["hello", 123]`
+
+### Multiple Listeners
+
+Multicast supports unlimited listeners - all devices that join multicast group `239.0.0.1` will receive messages simultaneously.
+
+### Troubleshooting
+
+**Messages not received?**
+
+1. **Verify multicast group:** Listener must join `239.0.0.1`
+2. **Check port:** Listener must be on port `57121`
+3. **Firewall:** Allow inbound UDP on port `57121`
+   ```powershell
+   # Windows PowerShell (as Administrator)
+   New-NetFirewallRule -DisplayName "MEANDER OSC" -Direction Inbound -LocalPort 57121 -Protocol UDP -Action Allow
+   ```
+4. **Network:** All devices on same local network
+5. **View logs:** Check Conductor console for send confirmations
+
+**Alternative: Unicast Mode**
+
+If multicast doesn't work on your network, use unicast:
+
+```env
+OSC_MULTICAST=false
+OSC_HOST=192.168.1.100  # Specific listener IP
+```
+
+Note: Unicast only reaches one device.
 
 </details>
 
@@ -439,26 +555,57 @@ cd Conductor && pnpm install && cd ..
 MEANDER is designed for **local network deployment** during performances:
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Local Network                            │
-│                                                             │
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐     │
-│  │   Laptop    │    │   Router    │    │   Mobile    │     │
-│  │ (Conductor) │◀─▶│   (WiFi)    │◀─▶│  Devices    │     │
-│  │             │    │             │    │ (Audience)  │     │
-│  │ :4000 HTTP  │    │             │    │             │     │
-│  │ :4000 WS    │    │             │    │             │     │
-│  │ :57121 OSC  │    │             │    │             │     │
-│  └─────────────┘    └─────────────┘    └─────────────┘     │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                        Local Network                             │
+│                                                                  │
+│  ┌─────────────┐    ┌──────────┐    ┌──────────┐                │
+│  │   Laptop    │    │  Router  │    │  Mobile  │                │
+│  │ (Conductor) │◀──▶│  (WiFi)  │◀──▶│ Devices  │                │
+│  │             │    │          │    │(Audience)│                │
+│  │ :4000 HTTP  │    │          │    │          │                │
+│  │ :4000 WS    │    │          │    │          │                │
+│  └─────────────┘    └──────────┘    └──────────┘                │
+│         │                                                        │
+│         │ OSC Multicast (239.0.0.1:57121)                       │
+│         │                                                        │
+│         ├──▶ Lighting Desk                                      │
+│         ├──▶ Sound System                                       │
+│         └──▶ Video Playback (QLab, etc.)                        │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
 ### Network Requirements
 
 - **TCP Port 4000**: HTTP/WebSocket (audience voting)
-- **UDP Port 57121**: OSC (external systems)
+- **UDP Port 57121**: OSC Multicast (lighting, sound, video systems)
+  - Multicast Group: `239.0.0.1`
+  - All listeners join this group to receive show control messages
 - **Local Network**: All devices on same subnet
 - **No Internet**: Performance works offline
+
+### OSC Integration
+
+MEANDER sends real-time OSC messages for external system control:
+
+**OSC Messages Sent:**
+- **State Changes**: `/meander/state` - Triggered when scenes/forks change
+- **Countdowns**: `/meander/countdown` - Updates every second during voting
+
+**Setup Your OSC Receiver:**
+1. Join multicast group `239.0.0.1`
+2. Listen on UDP port `57121`
+3. Filter by `/meander/*` for all messages
+
+**Quick Reference - OSC Messages:**
+
+| Address              | Arguments              | When Sent                    |
+| -------------------- | ---------------------- | ---------------------------- |
+| `/meander/state`     | nodeType, nodeName     | Scene/Fork changes           |
+| `/meander/countdown` | forkName, seconds      | Every second during voting   |
+| `/meander/test`      | "hello", 123           | Test endpoint only           |
+
+See the **Conductor → OSC Integration Setup** section above for complete configuration details.
 
 ### Wi-Fi QR Code Feature
 
