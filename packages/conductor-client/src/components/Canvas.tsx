@@ -12,20 +12,12 @@ const Canvas: React.FC = () => {
 
   useEffect(() => {
     if (!graph || !activeState || !canvasRef.current) return;
-
-    // This is a placeholder for actual rendering logic
-    // In a real implementation, you'd use React Flow or a similar library
-    // to render nodes and connections with pan/zoom functionality
-    // and highlight the active node based on activeState.id
     
     // For now, we'll just log to confirm data is available
     console.log('Rendering canvas with graph and active state:', {
       nodes: Object.keys(graph.nodes),
       activeNode: activeState.id,
     });
-
-    // Example of how you'd interact with a DOM-based canvas or library
-    // canvasRef.current.innerHTML = '<div>Mock Canvas with nodes</div>';
   }, [graph, activeState]);
 
   if (!graph || !activeState) {
