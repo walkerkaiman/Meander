@@ -1,0 +1,58 @@
+{
+  "logic_id": "diagnostic",
+  "version": 1,
+  "states": [
+    {
+      "name": "diagnostic",
+      "on_enter": [
+        {
+          "action": "play_video",
+          "target": "display-0",
+          "params": {
+            "fade_in_ms": 250,
+            "file": "diagnostic_video.mp4",
+            "loop": false
+          }
+        },
+        {
+          "action": "play_audio",
+          "target": "audio-0",
+          "params": {
+            "file": "diagnostic_audio.wav",
+            "loop": false,
+            "volume": 0.8
+          }
+        }
+      ],
+      "on_exit": [
+        {
+          "action": "stop_video",
+          "target": "display-0",
+          "params": {}
+        },
+        {
+          "action": "stop_audio",
+          "target": "audio-0",
+          "params": {}
+        }
+      ],
+      "sensor_handlers": [],
+      "timer_handlers": [],
+      "timers": []
+    },
+    {
+      "name": "idle",
+      "on_enter": [
+        {
+          "action": "stop_all",
+          "target": "",
+          "params": {}
+        }
+      ],
+      "on_exit": [],
+      "sensor_handlers": [],
+      "timer_handlers": [],
+      "timers": []
+    }
+  ]
+}

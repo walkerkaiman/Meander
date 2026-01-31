@@ -13,8 +13,8 @@ const configSchema = z.object({
   // Server configuration
   SERVER_PORT: z.string().default("4000"),
   OSC_PORT: z.string().default("57121"),
-  OSC_HOST: z.string().default("239.0.0.1"), // Multicast group address
-  OSC_MULTICAST: z.string().default("true"), // Use multicast (true) or unicast/broadcast (false)
+  OSC_HOST: z.string().default("192.168.1.100"), // IP address of OSC receiver (unicast) or multicast group
+  OSC_MULTICAST: z.string().default("false"), // Use multicast (true) or unicast (false)
   DATA_DIR: z.string().default(`${require("os").homedir()}/.meander`),
   LOG_LEVEL: z.string().default("info"),
 });

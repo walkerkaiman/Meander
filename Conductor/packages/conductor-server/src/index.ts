@@ -813,7 +813,7 @@ server.listen(Number(config.SERVER_PORT), "0.0.0.0", () => {
   
   console.log(`\n📡 OSC Configuration:`);
   console.log(`   Sending to: ${oscHost}:${oscPort}`);
-  console.log(`   Mode: ${oscMulticast ? 'MULTICAST' : 'UNICAST/BROADCAST'}`);
+  console.log(`   Mode: ${oscMulticast ? 'MULTICAST' : 'UNICAST'}`);
   
   if (oscMulticast) {
     console.log(`\n   📻 MULTICAST MODE ENABLED`);
@@ -828,10 +828,18 @@ server.listen(Number(config.SERVER_PORT), "0.0.0.0", () => {
     console.log(`       - Port: ${oscPort}`);
     console.log(`       - Some apps call this "Multicast Group" or "Group Address"`);
   } else {
-    console.log(`   Protocol: UDP ${oscHost.includes('255') ? 'Broadcast' : 'Unicast'}`);
-    console.log(`   ⚠️  Your OSC listener must:`);
+    const isBroadcast = oscHost.endsWith('.255');
+    console.log(`\n   📡 UNICAST MODE ENABLED`);
+    console.log(`   Target IP: ${oscHost}`);
+    console.log(`   Port: ${oscPort}`);
+    console.log(`   Type: ${isBroadcast ? 'Subnet Broadcast' : 'Direct IP'}`);
+    console.log(`\n   ⚠️  Your OSC listener must:`);
     console.log(`       - Listen on UDP port ${oscPort}`);
-    console.log(`       - Accept ${oscHost.includes('255') ? 'broadcast' : 'unicast'} messages`);
+    console.log(`       - Be configured to receive from IP: ${oscHost}`);
+    if (!isBroadcast) {
+      console.log(`\n   💡 Make sure ${oscHost} is the correct IP address of your OSC receiver!`);
+      console.log(`       Update OSC_HOST in config.env if needed.`);
+    }
   }
   
   console.log(`\n   🧪 Test endpoint: POST http://${localIP}:${serverPort}/test-osc`);

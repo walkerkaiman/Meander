@@ -1,7 +1,7 @@
 import dgram from "dgram";
 
 const DEFAULT_PORT = Number(process.env.OSC_PORT ?? 57121);
-const DEFAULT_HOST = process.env.OSC_HOST ?? '239.0.0.1'; // Multicast group address
+const DEFAULT_HOST = process.env.OSC_HOST ?? '192.168.1.100'; // IP address of OSC receiver (unicast) or multicast group
 const DEFAULT_MULTICAST = process.env.OSC_MULTICAST === 'true';
 
 export class OscPublisher {
@@ -40,9 +40,14 @@ export class OscPublisher {
           console.log(`✅ Multicast group: ${host}:${port}`);
           console.log(`   📡 Listeners should join multicast group: ${host}`);
         } else {
-          // Enable broadcast for unicast/broadcast addresses
-          this.udpSocket.setBroadcast(true);
-          console.log('✅ UDP broadcast enabled');
+          // For unicast: only enable broadcast if the host ends in .255 (broadcast address)
+          // For specific IP addresses, we don't need broadcast enabled
+          if (host.endsWith('.255')) {
+            this.udpSocket.setBroadcast(true);
+            console.log('✅ UDP broadcast enabled (subnet broadcast)');
+          } else {
+            console.log('✅ UDP unicast mode (sending to specific IP)');
+          }
         }
         
         console.log(`✅ Will send OSC to: ${host}:${port}`);
@@ -58,8 +63,9 @@ export class OscPublisher {
       console.log(`📡 OSC Publisher initialized - Multicasting to ${host}:${port}`);
       console.log(`📡 Mode: MULTICAST (IP Multicast Group)`);
     } else {
+      const mode = host.endsWith('.255') ? 'BROADCAST' : 'UNICAST';
       console.log(`📡 OSC Publisher initialized - Sending to ${host}:${port}`);
-      console.log(`📡 Mode: UNICAST/BROADCAST`);
+      console.log(`📡 Mode: ${mode} (${host.endsWith('.255') ? 'subnet broadcast' : 'direct IP'})`);
     }
   }
 

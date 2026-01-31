@@ -1,0 +1,4 @@
+github.com/adrg/libvlc-go/v3 v3.0.6 h1:uRjdmHCV64T1o5XF3ZHOcvBOqEiJP5MoqmUgW/Ojvtw=
+github.com/adrg/libvlc-go/v3 v3.0.6/go.mod h1:xJK0YD8cyMDejnrTFQinStE6RYCV1nlfS8KmqTpszSc=
+nhooyr.io/websocket v1.8.17 h1:KEVeLJkUywCKVsnLIDlD/5gtayKp8VoCkksHCGGfT9Y=
+nhooyr.io/websocket v1.8.17/go.mod h1:rN9OFWIUwuxg4fR5tELlYC04bXYowCP9GX47ivo2l+c=

@@ -1,0 +1,8 @@
+{
+  "profile_id": "dev-profile",
+  "version": 1,
+  "requires": {
+    "video_outputs": 0
+  }
+}
+
