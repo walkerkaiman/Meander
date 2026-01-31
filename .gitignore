@@ -61,3 +61,6 @@ dmypy.json
 
 # OS junk
 Thumbs.db
+
+# Deployable assets (local-only)
+Deployable/Assets/
