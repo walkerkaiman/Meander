@@ -46,9 +46,11 @@ type ExecutionProfile struct {
 }
 
 type ShowLogicDefinition struct {
-	LogicID string      `json:"logic_id"`
-	Version int         `json:"version"`
-	States  []ShowState `json:"states"`
+	LogicID      string      `json:"logic_id"`
+	Name         string      `json:"name"`
+	DeployableID string      `json:"deployable_id"`
+	Version      int         `json:"version"`
+	States       []ShowState `json:"states"`
 }
 
 type ShowState struct {

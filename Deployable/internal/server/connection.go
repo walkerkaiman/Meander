@@ -98,9 +98,13 @@ func (c *Client) Run(ctx context.Context, helloProvider func() HelloMessage, inc
 			}
 			continue
 		}
+		log.Printf("server connected: %s", c.ServerURL)
 		backoff = time.Second
 		connected <- time.Now().UTC()
 		hello := helloProvider()
+		log.Printf("registration: hello sent device_id=%s role=%s profile_version=%d logic_version=%d",
+			hello.DeviceID, hello.AssignedRoleID, hello.ProfileVersion, hello.ShowLogicVersion,
+		)
 		if err := writeJSON(ctx, conn, hello); err != nil {
 			log.Printf("hello send failed: %v", err)
 			_ = conn.Close(websocket.StatusInternalError, "hello failed")
@@ -121,6 +125,7 @@ func (c *Client) Run(ctx context.Context, helloProvider func() HelloMessage, inc
 				msgType, _ := envelope["type"].(string)
 				switch msgType {
 				case "identify":
+					log.Printf("registration: identify received")
 					incoming <- Incoming{RawType: msgType, Payload: IdentifyMessage{Type: msgType}}
 				case "assign_role":
 					data, _ := json.Marshal(envelope)
@@ -129,6 +134,9 @@ func (c *Client) Run(ctx context.Context, helloProvider func() HelloMessage, inc
 						log.Printf("assign_role parse failed: %v", err)
 						continue
 					}
+					log.Printf("registration: assign_role received role=%s profile=%s@%d logic=%s@%d",
+						msg.RoleID, msg.Profile.ProfileID, msg.Profile.Version, msg.ShowLogic.LogicID, msg.ShowLogic.Version,
+					)
 					incoming <- Incoming{RawType: msgType, Payload: msg}
 				case "state_update":
 					data, _ := json.Marshal(envelope)

@@ -16,6 +16,9 @@ import (
 
 func main() {
 	cfg := config.Load()
+	log.Printf("config: server=%s data_dir=%s assets_dir=%s web=%s offline=%t",
+		cfg.ServerURL, cfg.DataDir, cfg.AssetsDir, cfg.WebListenAddr, cfg.Offline,
+	)
 	rt := runtime.NewRuntime(runtime.Config{
 		DataDir:         cfg.DataDir,
 		AssetsDir:       cfg.AssetsDir,
@@ -23,6 +26,7 @@ func main() {
 		AssetsSourceURL: cfg.AssetsSourceURL,
 		PlaybackBackend: cfg.PlaybackBackend,
 		VLCPath:         cfg.VLCPath,
+		AssetsCleanup:  cfg.AssetsCleanup,
 		VLCDebug:        cfg.VLCDebug,
 	})
 	if err := rt.Boot(); err != nil {

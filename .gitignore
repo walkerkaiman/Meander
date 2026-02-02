@@ -1,5 +1,10 @@
 # Deployable assets (local-only)
+Assets/
 Deployable/Assets/
+Deployable/data/assignment.json
+Deployable/deployable.exe
+State Server/state-server.exe
+State Server/state-server.db
 
 # Media files
 *.mp4

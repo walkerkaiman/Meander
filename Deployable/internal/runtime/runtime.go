@@ -41,8 +41,10 @@ type Runtime struct {
 	serverOutgoing chan any
 
 	lastState      types.GlobalStateUpdate
-	lastConnected  time.Time
+	lastConnected   time.Time
 	supportedActions map[string]bool
+	engineStarted  bool
+	assetsCleanup  bool
 }
 
 type Config struct {
@@ -52,6 +54,7 @@ type Config struct {
 	AssetsSourceURL string
 	PlaybackBackend string
 	VLCPath         string
+	AssetsCleanup  bool
 	VLCDebug        bool
 }
 
@@ -98,6 +101,7 @@ func NewRuntime(cfg Config) *Runtime {
 		serverIncoming: make(chan server.Incoming, 32),
 		serverOutgoing: make(chan any, 32),
 		supportedActions: disp.SupportedActions(),
+		assetsCleanup:  cfg.AssetsCleanup,
 	}
 	go disp.Run(make(chan struct{}))
 	go rt.forwardActions()
@@ -106,6 +110,7 @@ func NewRuntime(cfg Config) *Runtime {
 }
 
 func (r *Runtime) Boot() error {
+	log.Printf("boot: starting deployable runtime")
 	if err := r.store.EnsureDirs(); err != nil {
 		return err
 	}
@@ -114,6 +119,7 @@ func (r *Runtime) Boot() error {
 		return err
 	}
 	r.Device = device
+	log.Printf("boot: device id=%s", r.Device.DeviceID)
 	assignment, err := r.store.LoadAssignment()
 	if err != nil {
 		return err
@@ -121,12 +127,18 @@ func (r *Runtime) Boot() error {
 	r.Assignment = assignment
 	if assignment.RoleID == "" {
 		r.PairingCode = generatePairingCode()
+		log.Printf("boot: unassigned, pairing code=%s", r.PairingCode)
+	} else {
+		log.Printf("boot: assigned role=%s", assignment.RoleID)
 	}
 	caps, err := capabilities.Discover()
 	if err != nil {
 		return err
 	}
 	r.Capabilities = caps
+	log.Printf("boot: capabilities video_outputs=%d audio_outputs=%d inputs=%d",
+		len(caps.VideoOutputs), len(caps.AudioOutputs), len(caps.VideoInputs)+len(caps.AudioInputs),
+	)
 	outputs := buildOutputDevices(caps)
 	if len(outputs) > 0 {
 		r.player.ConfigureOutputDevices(outputs)
@@ -135,15 +147,20 @@ func (r *Runtime) Boot() error {
 	}
 	if profile, err := r.store.LoadProfile(); err == nil {
 		r.Profile = profile
+		log.Printf("boot: loaded profile id=%s version=%d", profile.ProfileID, profile.Version)
 	}
 	if def, err := r.store.LoadShowLogic(); err == nil {
 		r.ShowLogic = def
+		log.Printf("boot: loaded show logic id=%s name=%s version=%d", def.LogicID, def.Name, def.Version)
 		if err := r.engine.Load(def); err == nil && assignment.RoleID != "" {
 			r.engine.Start(r.lastState.State)
+			r.engineStarted = true
+			log.Printf("boot: engine started with existing assignment")
 		}
 	}
 	r.sensors.Start()
 	go r.forwardSensorEvents()
+	log.Printf("boot: complete")
 	return nil
 }
 
@@ -191,6 +208,7 @@ func (r *Runtime) StartOffline() {
 		}
 	}
 	r.engine.Start(r.lastState.State)
+	r.engineStarted = true
 	log.Printf("offline mode: started at state %s", r.lastState.State)
 }
 
@@ -204,6 +222,13 @@ func (r *Runtime) ApplyDiagnosticShowLogic() error {
 		return err
 	}
 	r.ShowLogic = def
+	if err := r.engine.Load(def); err != nil {
+		return err
+	}
+	if r.engineStarted {
+		r.engine.Stop()
+		r.engine.Start(r.lastState.State)
+	}
 	log.Printf("diagnostic show logic generated with %d states", len(def.States))
 	return nil
 }
@@ -215,14 +240,21 @@ func (r *Runtime) SetConnected(ts time.Time) {
 func (r *Runtime) HandleServerMessage(msg server.Incoming) {
 	switch payload := msg.Payload.(type) {
 	case server.IdentifyMessage:
+		log.Printf("registration: identify requested")
 		supported := r.TriggerIdentify()
+		log.Printf("registration: identify supported=%t", supported)
 		r.serverOutgoing <- server.IdentifyAck{
 			Type:      "identify_ack",
 			DeviceID:  r.Device.DeviceID,
 			Supported: supported,
 		}
 	case server.AssignRoleMessage:
+		log.Printf("registration: assign_role received role=%s profile=%s@%d logic=%s@%d",
+			payload.RoleID, payload.Profile.ProfileID, payload.Profile.Version,
+			payload.ShowLogic.LogicID, payload.ShowLogic.Version,
+		)
 		if err := r.handleAssign(payload); err != nil {
+			log.Printf("registration: assign_role failed: %v", err)
 			r.serverOutgoing <- server.AssignRoleAck{
 				Type:     "assign_role_ack",
 				DeviceID: r.Device.DeviceID,
@@ -231,6 +263,7 @@ func (r *Runtime) HandleServerMessage(msg server.Incoming) {
 				Error:    err.Error(),
 			}
 		} else {
+			log.Printf("registration: assign_role success, acking")
 			r.serverOutgoing <- server.AssignRoleAck{
 				Type:     "assign_role_ack",
 				DeviceID: r.Device.DeviceID,
@@ -239,6 +272,7 @@ func (r *Runtime) HandleServerMessage(msg server.Incoming) {
 			}
 		}
 	case server.StateUpdateMessage:
+		log.Printf("state: update received state=%s v=%d", payload.State, payload.Version)
 		update := types.GlobalStateUpdate{
 			State:     payload.State,
 			Version:   payload.Version,
@@ -249,24 +283,34 @@ func (r *Runtime) HandleServerMessage(msg server.Incoming) {
 }
 
 func (r *Runtime) handleAssign(msg server.AssignRoleMessage) error {
+	log.Printf("registration: validating profile")
 	if err := validateProfile(msg.Profile, r.Capabilities); err != nil {
 		return err
 	}
+	log.Printf("registration: saving profile")
 	if err := r.store.SaveProfile(msg.Profile); err != nil {
 		return err
 	}
+	log.Printf("registration: saving show logic")
 	if err := r.store.SaveShowLogic(msg.ShowLogic); err != nil {
 		return err
 	}
+	log.Printf("registration: validating show logic")
 	if err := validateShowLogic(msg.ShowLogic, r.supportedActions); err != nil {
 		return err
 	}
 	requiredAssets := requiredAssetsFromLogic(msg.ShowLogic)
+	log.Printf("registration: verifying assets count=%d", len(requiredAssets))
 	if err := r.syncer.EnsureAssets(requiredAssets); err != nil {
 		return err
 	}
-	if err := r.syncer.CleanupAssets(requiredAssets); err != nil {
-		return err
+	if r.assetsCleanup {
+		log.Printf("registration: cleaning up assets")
+		if err := r.syncer.CleanupAssets(requiredAssets); err != nil {
+			return err
+		}
+	} else {
+		log.Printf("registration: assets cleanup disabled")
 	}
 	assignment := types.LocalAssignment{
 		ServerID:         msg.ServerID,
@@ -279,24 +323,41 @@ func (r *Runtime) handleAssign(msg server.AssignRoleMessage) error {
 	if err := r.store.SaveAssignment(assignment); err != nil {
 		return err
 	}
+	log.Printf("registration: saved assignment role=%s profile=%s@%d logic=%s@%d",
+		assignment.RoleID, assignment.ProfileID, assignment.ProfileVersion,
+		assignment.ShowLogicID, assignment.ShowLogicVersion,
+	)
 	r.Assignment = assignment
 	r.Profile = msg.Profile
 	r.ShowLogic = msg.ShowLogic
 	r.PairingCode = ""
 
+	log.Printf("registration: restarting engine with assigned logic")
 	r.engine.Stop()
+	r.engineStarted = false
 	if err := r.engine.Load(msg.ShowLogic); err != nil {
 		return err
 	}
 	r.engine.Start(r.lastState.State)
+	r.engineStarted = true
+	log.Printf("registration: complete")
 	return nil
 }
 
 func (r *Runtime) handleStateUpdate(update types.GlobalStateUpdate) {
 	if update.Version <= r.lastState.Version {
+		log.Printf("state: update ignored (stale) current=%d incoming=%d", r.lastState.Version, update.Version)
+		return
+	}
+	if !r.engineStarted && r.ShowLogic.LogicID != "" {
+		log.Printf("state: engine start on first update state=%s", update.State)
+		r.engine.Start(update.State)
+		r.engineStarted = true
+		r.lastState = update
 		return
 	}
 	r.lastState = update
+	log.Printf("state: apply update state=%s v=%d", update.State, update.Version)
 	r.engine.OnGlobalState(update)
 }
 
@@ -439,8 +500,10 @@ func buildDiagnosticShowLogic(caps types.CapabilityReport) types.ShowLogicDefini
 	}
 
 	return types.ShowLogicDefinition{
-		LogicID: "diagnostic",
-		Version: 1,
+		LogicID:      "diagnostic",
+		Name:         "Diagnostic",
+		DeployableID: "diagnostic",
+		Version:      1,
 		States: []types.ShowState{
 			{
 				Name:       "diagnostic",

@@ -23,6 +23,7 @@ func main() {
 	schemaPath := getenv("STATE_SERVER_SCHEMA", "")
 	engineVersions := strings.Split(getenv("STATE_SERVER_ENGINE_VERS", "1.0.0"), ",")
 	serverVersion := getenv("STATE_SERVER_VERSION", "0.1.0")
+	assetsDir := getenv("STATE_SERVER_ASSETS_DIR", "Assets")
 
 	store, err := sqlite.NewStore(dbPath)
 	if err != nil {
@@ -42,13 +43,16 @@ func main() {
 		State:     "init",
 		Variables: map[string]interface{}{},
 		Timestamp: time.Now().UTC(),
+		Version:   1,
 	}
-	loop := state.NewLoop(store, hub, initialState)
+	broadcaster := &server.MultiBroadcaster{Hub: hub}
+	loop := state.NewLoop(store, broadcaster, initialState)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go loop.Run(ctx, eventCh)
 
-	srv := server.New(store, hub, eventCh, validator, serverVersion)
+	srv := server.New(store, hub, eventCh, validator, serverVersion, loop.OverrideState, assetsDir)
+	broadcaster.Server = srv
 	httpServer := &http.Server{
 		Addr:    listenAddr,
 		Handler: srv.Routes(),

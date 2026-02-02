@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -32,15 +33,24 @@ type Server struct {
 	eventCh       chan models.InputEvent
 	validator     *ShowLogicValidator
 	serverVersion string
+	overrideState func(state string, variables map[string]interface{}) bool
+	deployableMu  sync.RWMutex
+	deployables   map[string]*DeployableSession
+	uiMu          sync.RWMutex
+	uiClients     map[*RegUIClient]struct{}
+	assetsDir     string
 }
 
-func New(store Store, hub *ws.Hub, eventCh chan models.InputEvent, validator *ShowLogicValidator, serverVersion string) *Server {
+func New(store Store, hub *ws.Hub, eventCh chan models.InputEvent, validator *ShowLogicValidator, serverVersion string, overrideState func(state string, variables map[string]interface{}) bool, assetsDir string) *Server {
 	return &Server{
 		store:         store,
 		hub:           hub,
 		eventCh:       eventCh,
 		validator:     validator,
 		serverVersion: serverVersion,
+		overrideState: overrideState,
+		deployables:   make(map[string]*DeployableSession),
+		assetsDir:     assetsDir,
 	}
 }
 
@@ -52,6 +62,14 @@ func (s *Server) Routes() http.Handler {
 	router.HandleFunc("/register", s.RegisterDeployable).Methods(http.MethodPost)
 	router.HandleFunc("/register/ack", s.DeployableAck).Methods(http.MethodPost)
 
+	router.HandleFunc("/ui", s.UI).Methods(http.MethodGet)
+	router.HandleFunc("/ui/register", s.RegisterUI).Methods(http.MethodGet)
+	router.HandleFunc("/ws/ui/register", s.RegisterUISocket)
+
+	if s.assetsDir != "" {
+		router.PathPrefix("/assets/").Handler(http.StripPrefix("/assets/", http.FileServer(http.Dir(s.assetsDir))))
+	}
+
 	api := router.PathPrefix("/api/v1").Subrouter()
 	api.HandleFunc("/register", s.RegisterDeployable).Methods(http.MethodPost)
 	api.HandleFunc("/deployables", s.ListDeployables).Methods(http.MethodGet)
@@ -60,8 +78,13 @@ func (s *Server) Routes() http.Handler {
 	api.HandleFunc("/deployables/{id}/ack", s.DeployableAck).Methods(http.MethodPost)
 	api.HandleFunc("/events", s.IngestEvent).Methods(http.MethodPost)
 	api.HandleFunc("/show-logic/{role}", s.UpsertShowLogic).Methods(http.MethodPut)
+	api.HandleFunc("/show-logic-files", s.ListShowLogicFiles).Methods(http.MethodGet)
+	api.HandleFunc("/state", s.SetState).Methods(http.MethodPost)
+	api.HandleFunc("/deployables/pending", s.ListPendingDeployables).Methods(http.MethodGet)
+	api.HandleFunc("/deployables/{id}/assign", s.AssignDeployable).Methods(http.MethodPost)
 
 	router.HandleFunc("/ws/state", s.StateWebSocket)
+	router.HandleFunc("/ws/deployable", s.DeployableWebSocket)
 
 	return router
 }

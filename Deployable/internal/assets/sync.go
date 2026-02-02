@@ -28,6 +28,9 @@ func (s *Syncer) EnsureAssets(required []string) error {
 			return err
 		}
 	}
+	if len(missing) > 0 {
+		fmt.Printf("assets: missing %d file(s): %s\n", len(missing), strings.Join(missing, ", "))
+	}
 	for _, asset := range missing {
 		if err := s.fetchAsset(asset); err != nil {
 			return err
@@ -61,9 +64,11 @@ func (s *Syncer) CleanupAssets(required []string) error {
 
 func (s *Syncer) fetchAsset(asset string) error {
 	if s.SourceDir != "" {
+		fmt.Printf("assets: copying %s from %s\n", asset, s.SourceDir)
 		return s.copyFromDir(asset)
 	}
 	if s.SourceURL != "" {
+		fmt.Printf("assets: downloading %s from %s\n", asset, s.SourceURL)
 		return s.downloadFromURL(asset)
 	}
 	return errors.New("asset missing and no source configured: " + asset)

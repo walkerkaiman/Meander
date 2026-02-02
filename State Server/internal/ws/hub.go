@@ -53,10 +53,16 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 
 func (h *Hub) BroadcastState(state models.GlobalState) {
 	payload := struct {
+		Type      string                 `json:"type"`
 		State     string                 `json:"state"`
+		Version   int                    `json:"version"`
+		Timestamp time.Time              `json:"timestamp"`
 		Variables map[string]interface{} `json:"variables"`
 	}{
+		Type:      "state_update",
 		State:     state.State,
+		Version:   state.Version,
+		Timestamp: state.Timestamp,
 		Variables: state.Variables,
 	}
 	data, _ := json.Marshal(payload)

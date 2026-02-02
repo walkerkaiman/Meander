@@ -1,8 +1,5 @@
 {
-  "profile_id": "dev-profile",
+  "profile_id": "default",
   "version": 1,
-  "requires": {
-    "video_outputs": 0
-  }
+  "requires": {}
 }
-

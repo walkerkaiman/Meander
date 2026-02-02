@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"os/exec"
 	"runtime"
@@ -63,7 +64,14 @@ func (b *VLCCommandBackend) Open(assetPath string, output OutputDevice) (Backend
 	}
 	args = append(args, assetPath)
 
-	cmd := exec.Command(b.VLCPath, args...)
+	vlcPath := b.VLCPath
+	if resolved, err := exec.LookPath(b.VLCPath); err == nil {
+		vlcPath = resolved
+	} else {
+		log.Printf("vlc: executable not found in PATH: %s", b.VLCPath)
+	}
+	log.Printf("vlc: launching %s %s", vlcPath, strings.Join(args, " "))
+	cmd := exec.Command(vlcPath, args...)
 	if runtime.GOOS == "windows" {
 		cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	}

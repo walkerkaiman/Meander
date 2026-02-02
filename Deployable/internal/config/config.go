@@ -18,12 +18,13 @@ type Config struct {
 	PlaybackBackend string
 	VLCPath         string
 	DiagnosticShowLogic bool
+	AssetsCleanup  bool
 	VLCDebug        bool
 }
 
 func Load() Config {
 	var cfg Config
-	flag.StringVar(&cfg.ServerURL, "server", envOrDefault("DEPLOYABLE_SERVER_URL", "ws://localhost:8080/ws"), "State server websocket URL")
+	flag.StringVar(&cfg.ServerURL, "server", envOrDefault("DEPLOYABLE_SERVER_URL", "ws://localhost:8081/ws/deployable"), "State server websocket URL")
 	flag.StringVar(&cfg.DataDir, "data-dir", envOrDefault("DEPLOYABLE_DATA_DIR", "./data"), "Persistent data directory")
 	flag.StringVar(&cfg.AssetsDir, "assets-dir", envOrDefault("DEPLOYABLE_ASSETS_DIR", "./Assets"), "Assets directory")
 	flag.StringVar(&cfg.AssetsSourceDir, "assets-source-dir", envOrDefault("DEPLOYABLE_ASSETS_SOURCE_DIR", ""), "Source directory for assets (optional)")
