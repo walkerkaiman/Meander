@@ -27,6 +27,7 @@ Defaults:
 Environment variables:
 - `STATE_SERVER_DB`: SQLite file path (default `state-server.db`)
 - `STATE_SERVER_LISTEN`: HTTP listen address (default `:8080`)
+- `STATE_SERVER_ASSETS_DIR`: directory served at `/assets` (default `Assets`)
 - `STATE_SERVER_SCHEMA`: optional JSON schema file for show logic
 - `STATE_SERVER_ENGINE_VERS`: comma-separated allowed engine versions
   (default `1.0.0`)
@@ -38,6 +39,10 @@ Base URL: `http://localhost:8080`
 
 Health:
 - `GET /health`
+
+Control UI:
+- `GET /ui` (state override buttons)
+- `GET /ui/register` (registration + reassignment UI)
 
 Registration:
 - `POST /register` (same as `POST /api/v1/register`)
@@ -82,6 +87,7 @@ Patch body:
 Show logic:
 - `PUT /api/v1/show-logic/{role}`
 - `GET /api/v1/deployables/{id}/show-logic`
+- `GET /api/v1/show-logic-files` (list JSON files in `show-logic/`)
 
 `PUT` body:
 ```
@@ -112,6 +118,12 @@ Body:
 Event ingestion:
 - `POST /api/v1/events`
 
+State override:
+- `POST /api/v1/state`
+
+Assets:
+- `GET /assets/<file>` (served from `STATE_SERVER_ASSETS_DIR`)
+
 Body:
 ```
 {
@@ -131,12 +143,13 @@ Responses are JSON; errors look like:
 ## WebSocket
 
 Endpoint:
-- `GET /ws/state?deployable_id=DEVICE_ID`
+- `GET /ws/state?deployable_id=DEVICE_ID` (state subscribers)
+- `GET /ws/deployable` (deployable registration + state updates)
 
 Messages:
 - State broadcast:
 ```
-{"state":"intro","variables":{"score":3}}
+{"type":"state_update","state":"intro","version":2,"timestamp":"...","variables":{"score":3}}
 ```
 - Logic update signal (targeted to deployable ID):
 ```
@@ -194,6 +207,12 @@ For a new deployable device:
 4. Load logic and assets, then `POST /api/v1/deployables/{id}/ack`
 5. Send events to `POST /api/v1/events`
 6. Subscribe to `GET /ws/state?deployable_id=...`
+
+## Show logic files
+
+Place show logic JSON files in `State Server/show-logic/`. The registration UI
+lists them by `name` (falls back to filename). Use `deployable_id` and `name`
+fields so tooling can match the correct file to a device.
 
 ## Extending the server (AI/dev guide)
 

@@ -14,11 +14,12 @@ Then open `http://localhost:8090/api/status`.
 
 All settings are available as flags or environment variables.
 
-- `--server` / `DEPLOYABLE_SERVER_URL` (default: `ws://localhost:8080/ws`)
+- `--server` / `DEPLOYABLE_SERVER_URL` (default: `ws://localhost:8081/ws/deployable`)
 - `--data-dir` / `DEPLOYABLE_DATA_DIR` (default: `./data`)
 - `--assets-dir` / `DEPLOYABLE_ASSETS_DIR` (default: `./Assets`)
 - `--assets-source-dir` / `DEPLOYABLE_ASSETS_SOURCE_DIR`
 - `--assets-source-url` / `DEPLOYABLE_ASSETS_SOURCE_URL`
+- `--assets-cleanup` / `DEPLOYABLE_ASSETS_CLEANUP` (default: `false`)
 - `--web` / `DEPLOYABLE_WEB_ADDR` (default: `:8090`)
 - `--version` / `DEPLOYABLE_VERSION` (default: `dev`)
 - `--offline` / `DEPLOYABLE_OFFLINE` (default: `false`)
@@ -43,6 +44,15 @@ Notes:
 - Targets are resolved from discovered capabilities and can also be referenced by device name.
 - For diagnostics, place test files in `Assets/` and use `--diagnostic-showlogic`.
 
+## Asset sync
+
+The deployable can fetch missing assets from:
+- `DEPLOYABLE_ASSETS_SOURCE_DIR` (local copy)
+- `DEPLOYABLE_ASSETS_SOURCE_URL` (HTTP, e.g. `http://server:8081/assets`)
+
+`DEPLOYABLE_ASSETS_CLEANUP=false` is recommended during testing to avoid deleting
+files that are not referenced by the current show logic.
+
 ## Registration flow
 
 1. Boot loads or creates `data/device.json` and loads any saved assignment in `data/assignment.json`.
@@ -50,7 +60,7 @@ Notes:
 3. If no role is assigned, a pairing code is generated.
 4. The deployable connects to the State Server and sends a `hello` containing device identity, pairing code (if unassigned), current profile/show logic versions, and capabilities.
 5. The server assigns a role, profile, and show logic via `assign_role`.
-6. The deployable validates the execution profile and show logic, verifies required assets, downloads missing assets, and cleans up unreferenced assets.
+6. The deployable validates the execution profile and show logic, verifies required assets, downloads missing assets, and optionally cleans up unreferenced assets.
 7. Assignment data and versions are persisted to disk and acknowledged with `assign_role_ack`.
 8. The deployable subscribes to global state updates and begins execution.
 
