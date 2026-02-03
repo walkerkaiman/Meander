@@ -20,7 +20,7 @@ type HelloMessage struct {
 	IP                string                 `json:"ip"`
 	AgentVersion      string                 `json:"agent_version"`
 	PairingCode       string                 `json:"pairing_code,omitempty"`
-	AssignedRoleID    string                 `json:"assigned_role_id,omitempty"`
+	AssignedLogicID   string                 `json:"assigned_logic_id,omitempty"`
 	ProfileVersion    int                    `json:"assigned_profile_version,omitempty"`
 	ShowLogicVersion  int                    `json:"assigned_show_logic_version,omitempty"`
 	Capabilities      types.CapabilityReport `json:"capabilities"`
@@ -32,7 +32,7 @@ type IdentifyMessage struct {
 
 type AssignRoleMessage struct {
 	Type       string                    `json:"type"`
-	RoleID     string                    `json:"role_id"`
+	LogicID    string                    `json:"logic_id"`
 	ServerID   string                    `json:"server_id"`
 	Profile    types.ExecutionProfile    `json:"profile"`
 	ShowLogic  types.ShowLogicDefinition `json:"show_logic"`
@@ -48,7 +48,7 @@ type StateUpdateMessage struct {
 type AssignRoleAck struct {
 	Type     string `json:"type"`
 	DeviceID string `json:"device_id"`
-	RoleID   string `json:"role_id"`
+	LogicID  string `json:"logic_id"`
 	Status  string `json:"status"`
 	Error   string `json:"error,omitempty"`
 }

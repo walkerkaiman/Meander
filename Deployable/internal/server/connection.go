@@ -20,7 +20,7 @@ type HelloMessage struct {
 	IP                string                 `json:"ip"`
 	AgentVersion      string                 `json:"agent_version"`
 	PairingCode       string                 `json:"pairing_code,omitempty"`
-	AssignedRoleID    string                 `json:"assigned_role_id,omitempty"`
+	AssignedLogicID   string                 `json:"assigned_logic_id,omitempty"`
 	ProfileVersion    int                    `json:"assigned_profile_version,omitempty"`
 	ShowLogicVersion  int                    `json:"assigned_show_logic_version,omitempty"`
 	Capabilities      types.CapabilityReport `json:"capabilities"`
@@ -32,7 +32,7 @@ type IdentifyMessage struct {
 
 type AssignRoleMessage struct {
 	Type       string                    `json:"type"`
-	RoleID     string                    `json:"role_id"`
+	LogicID    string                    `json:"logic_id"`
 	ServerID   string                    `json:"server_id"`
 	Profile    types.ExecutionProfile    `json:"profile"`
 	ShowLogic  types.ShowLogicDefinition `json:"show_logic"`
@@ -48,7 +48,7 @@ type StateUpdateMessage struct {
 type AssignRoleAck struct {
 	Type     string `json:"type"`
 	DeviceID string `json:"device_id"`
-	RoleID   string `json:"role_id"`
+	LogicID  string `json:"logic_id"`
 	Status  string `json:"status"`
 	Error   string `json:"error,omitempty"`
 }
@@ -102,8 +102,8 @@ func (c *Client) Run(ctx context.Context, helloProvider func() HelloMessage, inc
 		backoff = time.Second
 		connected <- time.Now().UTC()
 		hello := helloProvider()
-		log.Printf("registration: hello sent device_id=%s role=%s profile_version=%d logic_version=%d",
-			hello.DeviceID, hello.AssignedRoleID, hello.ProfileVersion, hello.ShowLogicVersion,
+		log.Printf("registration: hello sent device_id=%s logic=%s profile_version=%d logic_version=%d",
+			hello.DeviceID, hello.AssignedLogicID, hello.ProfileVersion, hello.ShowLogicVersion,
 		)
 		if err := writeJSON(ctx, conn, hello); err != nil {
 			log.Printf("hello send failed: %v", err)
@@ -134,8 +134,8 @@ func (c *Client) Run(ctx context.Context, helloProvider func() HelloMessage, inc
 						log.Printf("assign_role parse failed: %v", err)
 						continue
 					}
-					log.Printf("registration: assign_role received role=%s profile=%s@%d logic=%s@%d",
-						msg.RoleID, msg.Profile.ProfileID, msg.Profile.Version, msg.ShowLogic.LogicID, msg.ShowLogic.Version,
+					log.Printf("registration: assign_role received logic=%s profile=%s@%d logic=%s@%d",
+						msg.LogicID, msg.Profile.ProfileID, msg.Profile.Version, msg.ShowLogic.LogicID, msg.ShowLogic.Version,
 					)
 					incoming <- Incoming{RawType: msgType, Payload: msg}
 				case "state_update":

@@ -1,7 +1,10 @@
 package server
 
 import (
+	"encoding/json"
+	"errors"
 	"net/http"
+	"time"
 
 	"state-server/internal/models"
 )
@@ -35,15 +38,15 @@ func (s *Server) RegisterDeployable(w http.ResponseWriter, r *http.Request) {
 	} else {
 		s.hub.SetActive(record.DeployableID, false)
 	}
-	needsAssign := record.AssignedRole == ""
+	needsAssign := record.AssignedLogicID == ""
 	resp := models.RegisterDeployableResponse{
 		Known:        known,
-		AssignedRole: record.AssignedRole,
+		AssignedLogicID: record.AssignedLogicID,
 		NeedsAssign:  needsAssign,
 		Message:      "",
 	}
 	if needsAssign {
-		resp.Message = "awaiting role assignment"
+		resp.Message = "awaiting show logic assignment"
 	}
 	writeJSON(w, http.StatusOK, resp)
 }
@@ -59,21 +62,28 @@ func (s *Server) GetShowLogic(w http.ResponseWriter, r *http.Request) {
 		errorJSON(w, http.StatusInternalServerError, "failed to load deployable")
 		return
 	}
-	if !ok {
-		errorJSON(w, http.StatusNotFound, "deployable not found")
+	logicID := ""
+	if ok {
+		logicID = record.AssignedLogicID
+	} else {
+		s.deployableMu.RLock()
+		session := s.deployables[id]
+		s.deployableMu.RUnlock()
+		if session != nil {
+			logicID = session.AssignedLogicID
+		}
+	}
+	if logicID == "" {
+		errorJSON(w, http.StatusConflict, "deployable has no assigned logic")
 		return
 	}
-	if record.AssignedRole == "" {
-		errorJSON(w, http.StatusConflict, "deployable has no assigned role")
-		return
-	}
-	pkg, ok, err := s.store.GetLatestShowLogicForRole(r.Context(), record.AssignedRole)
+	pkg, ok, err := s.store.GetLatestShowLogicForRole(r.Context(), logicID)
 	if err != nil {
 		errorJSON(w, http.StatusInternalServerError, "failed to load show logic")
 		return
 	}
 	if !ok {
-		errorJSON(w, http.StatusNotFound, "no show logic package for role")
+		errorJSON(w, http.StatusNotFound, "no show logic package for logic id")
 		return
 	}
 	writeJSON(w, http.StatusOK, pkg)
@@ -114,25 +124,197 @@ func (s *Server) DeployableAck(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) IngestEvent(w http.ResponseWriter, r *http.Request) {
-	var event models.InputEvent
-	if err := decodeJSON(r, &event); err != nil {
+	var req models.SignalsIngestRequest
+	if err := decodeJSON(r, &req); err != nil {
 		errorJSON(w, http.StatusBadRequest, "invalid event payload")
 		return
 	}
-	if err := ensureDeployableID(event.DeployableID); err != nil {
+	if err := ensureDeployableID(req.DeployableID); err != nil {
 		errorJSON(w, http.StatusBadRequest, "deployable_id required")
 		return
 	}
-	event.Timestamp = normalizeTimestamp(event.Timestamp)
-	if err := s.store.InsertEvent(r.Context(), event); err != nil {
-		errorJSON(w, http.StatusInternalServerError, "failed to persist event")
+	if s.rulesStore == nil {
+		errorJSON(w, http.StatusInternalServerError, "rules store not configured")
 		return
+	}
+	ctxData, ok, err := s.rulesStore.GetDeployableContext(r.Context(), req.DeployableID)
+	if err != nil {
+		errorJSON(w, http.StatusInternalServerError, "failed to load deployable context")
+		return
+	}
+	if !ok {
+		errorJSON(w, http.StatusBadRequest, "deployable context not found")
+		return
+	}
+	defs, ok, err := s.rulesStore.GetSignalDefinitions(r.Context(), ctxData.LogicID)
+	if err != nil {
+		errorJSON(w, http.StatusInternalServerError, "failed to load signal definitions")
+		return
+	}
+	if !ok || len(defs) == 0 {
+		fallbackDefs, err := s.signalDefsFromLogic(r, ctxData.LogicID)
+		if err != nil {
+			errorJSON(w, http.StatusInternalServerError, "failed to load show logic signals")
+			return
+		}
+		if len(fallbackDefs) == 0 {
+			fallbackDefs = inferSignalDefs(req.Signals)
+		}
+		if len(fallbackDefs) == 0 {
+			errorJSON(w, http.StatusBadRequest, "signal definitions not found for logic id")
+			return
+		}
+		defs = fallbackDefs
+	}
+
+	event := models.Event{
+		DeployableID: req.DeployableID,
+		LogicID:      ctxData.LogicID,
+		Tags:         ctxData.Tags,
+		Timestamp:    time.Unix(req.Timestamp, 0).UTC(),
+		Signals:      map[string]models.SignalValue{},
+	}
+	if event.Timestamp.IsZero() {
+		event.Timestamp = time.Now().UTC()
+	}
+	for name, raw := range req.Signals {
+		def, ok := defs[name]
+		if !ok {
+			continue
+		}
+		value, err := coerceSignalValue(def.Type, raw)
+		if err != nil {
+			errorJSON(w, http.StatusBadRequest, "signal type mismatch for "+name)
+			return
+		}
+		event.Signals[name] = models.SignalValue{Type: def.Type, Value: value}
 	}
 	select {
 	case s.eventCh <- event:
 	default:
 	}
 	writeJSON(w, http.StatusAccepted, map[string]string{"status": "queued"})
+}
+
+func (s *Server) signalDefsFromLogic(r *http.Request, logicID string) (map[string]models.SignalDefinition, error) {
+	if logicID == "" {
+		return nil, nil
+	}
+	pkg, ok, err := s.store.GetLatestShowLogicForRole(r.Context(), logicID)
+	if err != nil || !ok || len(pkg.ShowLogic) == 0 {
+		return nil, err
+	}
+	var def models.ShowLogicDefinition
+	if err := json.Unmarshal(pkg.ShowLogic, &def); err != nil {
+		return nil, err
+	}
+	out := make(map[string]models.SignalDefinition)
+	for _, item := range def.Signals {
+		if item.Name == "" || item.Type == "" {
+			continue
+		}
+		out[item.Name] = item
+	}
+	return out, nil
+}
+
+func inferSignalDefs(raw map[string]any) map[string]models.SignalDefinition {
+	out := map[string]models.SignalDefinition{}
+	for name, value := range raw {
+		if name == "" {
+			continue
+		}
+		switch v := value.(type) {
+		case bool:
+			out[name] = models.SignalDefinition{Name: name, Type: models.SignalBool}
+		case string:
+			out[name] = models.SignalDefinition{Name: name, Type: models.SignalString}
+		case float64, float32, int, int64, int32:
+			out[name] = models.SignalDefinition{Name: name, Type: models.SignalNumber}
+		case []float64:
+			if len(v) == 2 {
+				out[name] = models.SignalDefinition{Name: name, Type: models.SignalVector2}
+			}
+		case []any:
+			if len(v) == 2 {
+				if _, ok := asNumber(v[0]); ok {
+					if _, ok := asNumber(v[1]); ok {
+						out[name] = models.SignalDefinition{Name: name, Type: models.SignalVector2}
+					}
+				}
+			}
+		}
+	}
+	return out
+}
+
+func asNumber(v any) (float64, bool) {
+	switch n := v.(type) {
+	case float64:
+		return n, true
+	case float32:
+		return float64(n), true
+	case int:
+		return float64(n), true
+	case int64:
+		return float64(n), true
+	case int32:
+		return float64(n), true
+	default:
+		return 0, false
+	}
+}
+
+func coerceSignalValue(valueType models.SignalValueType, raw any) (any, error) {
+	switch valueType {
+	case models.SignalBool:
+		if v, ok := raw.(bool); ok {
+			return v, nil
+		}
+		return nil, errors.New("expected bool")
+	case models.SignalNumber:
+		switch v := raw.(type) {
+		case float64:
+			return v, nil
+		case float32:
+			return float64(v), nil
+		case int:
+			return float64(v), nil
+		case int64:
+			return float64(v), nil
+		case int32:
+			return float64(v), nil
+		default:
+			return nil, errors.New("expected number")
+		}
+	case models.SignalString:
+		if v, ok := raw.(string); ok {
+			return v, nil
+		}
+		return nil, errors.New("expected string")
+	case models.SignalVector2:
+		switch v := raw.(type) {
+		case []any:
+			if len(v) != 2 {
+				return nil, errors.New("expected vector2")
+			}
+			x, xok := v[0].(float64)
+			y, yok := v[1].(float64)
+			if xok && yok {
+				return []float64{x, y}, nil
+			}
+			return nil, errors.New("expected vector2 numbers")
+		case []float64:
+			if len(v) != 2 {
+				return nil, errors.New("expected vector2")
+			}
+			return v, nil
+		default:
+			return nil, errors.New("expected vector2")
+		}
+	default:
+		return nil, errors.New("unknown signal type")
+	}
 }
 
 func (s *Server) ListDeployables(w http.ResponseWriter, r *http.Request) {
@@ -164,9 +346,9 @@ func (s *Server) UpdateDeployable(w http.ResponseWriter, r *http.Request) {
 		errorJSON(w, http.StatusNotFound, "deployable not found")
 		return
 	}
-	changed := current.AssignedRole != req.AssignedRole
-	if err := s.store.UpdateDeployableRole(r.Context(), id, req.AssignedRole); err != nil {
-		errorJSON(w, http.StatusInternalServerError, "failed to update role")
+	changed := current.AssignedLogicID != req.AssignedLogicID
+	if err := s.store.UpdateDeployableRole(r.Context(), id, req.AssignedLogicID); err != nil {
+		errorJSON(w, http.StatusInternalServerError, "failed to update logic id")
 		return
 	}
 	if changed {

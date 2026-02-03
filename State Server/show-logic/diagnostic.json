@@ -13,7 +13,7 @@
           "params": {
             "fade_in_ms": 250,
             "file": "diagnostic_video.mov",
-            "loop": true
+            "loop": false
           }
         },
         {
@@ -21,7 +21,7 @@
           "target": "audio-0",
           "params": {
             "file": "diagnostic_audio.wav",
-            "loop": true,
+            "loop": false,
             "volume": 0.8
           }
         }
@@ -44,6 +44,62 @@
     },
     {
       "name": "idle",
+      "on_enter": [
+        {
+          "action": "stop_all",
+          "target": "",
+          "params": {}
+        }
+      ],
+      "on_exit": [],
+      "sensor_handlers": [],
+      "timer_handlers": [],
+      "timers": []
+    },
+    {
+      "name": "pressed",
+      "on_enter": [
+        {
+          "action": "stop_all",
+          "target": "",
+          "params": {}
+        }
+      ],
+      "on_exit": [],
+      "sensor_handlers": [],
+      "timer_handlers": [],
+      "timers": []
+    },
+    {
+      "name": "threshold",
+      "on_enter": [
+        {
+          "action": "stop_all",
+          "target": "",
+          "params": {}
+        }
+      ],
+      "on_exit": [],
+      "sensor_handlers": [],
+      "timer_handlers": [],
+      "timers": []
+    },
+    {
+      "name": "in_range",
+      "on_enter": [
+        {
+          "action": "stop_all",
+          "target": "",
+          "params": {}
+        }
+      ],
+      "on_exit": [],
+      "sensor_handlers": [],
+      "timer_handlers": [],
+      "timers": []
+    },
+    {
+      "name": "started",
       "on_enter": [
         {
           "action": "stop_all",

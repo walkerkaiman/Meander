@@ -2,7 +2,9 @@ package config
 
 import (
 	"flag"
+	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -35,6 +37,7 @@ func Load() Config {
 	flag.StringVar(&cfg.PlaybackBackend, "playback-backend", envOrDefault("DEPLOYABLE_PLAYBACK_BACKEND", "vlc"), "Playback backend: vlc, libvlc, or stub")
 	flag.StringVar(&cfg.VLCPath, "vlc-path", envOrDefault("DEPLOYABLE_VLC_PATH", "vlc"), "Path to VLC executable (for vlc backend)")
 	flag.BoolVar(&cfg.DiagnosticShowLogic, "diagnostic-showlogic", envBool("DEPLOYABLE_DIAGNOSTIC_SHOWLOGIC", false), "Generate and use diagnostic show logic based on discovered outputs")
+	flag.BoolVar(&cfg.AssetsCleanup, "assets-cleanup", envBool("DEPLOYABLE_ASSETS_CLEANUP", false), "Delete local assets not referenced by show logic")
 	flag.BoolVar(&cfg.VLCDebug, "vlc-debug", envBool("DEPLOYABLE_VLC_DEBUG", false), "Enable VLC stderr logging for RC debugging")
 	flag.Parse()
 
@@ -47,6 +50,14 @@ func Load() Config {
 	cfg.AgentVersion = strings.TrimSpace(cfg.AgentVersion)
 	cfg.PlaybackBackend = strings.ToLower(strings.TrimSpace(cfg.PlaybackBackend))
 	cfg.VLCPath = strings.TrimSpace(cfg.VLCPath)
+
+	if cfg.AssetsSourceDir == "" && cfg.AssetsSourceURL == "" {
+		cfg.AssetsSourceURL = deriveAssetsURL(cfg.ServerURL)
+	}
+
+	cfg.DataDir = normalizeRelativeToExecutable(cfg.DataDir)
+	cfg.AssetsDir = normalizeRelativeToExecutable(cfg.AssetsDir)
+	cfg.AssetsSourceDir = normalizeRelativeToExecutable(cfg.AssetsSourceDir)
 
 	return cfg
 }
@@ -66,3 +77,82 @@ func envBool(key string, def bool) bool {
 	return def
 }
 
+func normalizeRelativeToExecutable(path string) string {
+	if path == "" || filepath.IsAbs(path) {
+		return path
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		return path
+	}
+	return filepath.Join(filepath.Dir(exe), path)
+}
+
+func deriveAssetsURL(serverURL string) string {
+	if serverURL == "" {
+		return ""
+	}
+	parsed, err := url.Parse(serverURL)
+	if err != nil || parsed.Host == "" {
+		return ""
+	}
+	switch parsed.Scheme {
+	case "ws":
+		parsed.Scheme = "http"
+	case "wss":
+		parsed.Scheme = "https"
+	case "http", "https":
+	default:
+		return ""
+	}
+	parsed.Path = "/assets"
+	parsed.RawQuery = ""
+	parsed.Fragment = ""
+	return parsed.String()
+}
+
+func DeriveEventsURL(serverURL string) string {
+	if serverURL == "" {
+		return ""
+	}
+	parsed, err := url.Parse(serverURL)
+	if err != nil || parsed.Host == "" {
+		return ""
+	}
+	switch parsed.Scheme {
+	case "ws":
+		parsed.Scheme = "http"
+	case "wss":
+		parsed.Scheme = "https"
+	case "http", "https":
+	default:
+		return ""
+	}
+	parsed.Path = "/api/v1/events"
+	parsed.RawQuery = ""
+	parsed.Fragment = ""
+	return parsed.String()
+}
+
+func DeriveServerBaseURL(serverURL string) string {
+	if serverURL == "" {
+		return ""
+	}
+	parsed, err := url.Parse(serverURL)
+	if err != nil || parsed.Host == "" {
+		return ""
+	}
+	switch parsed.Scheme {
+	case "ws":
+		parsed.Scheme = "http"
+	case "wss":
+		parsed.Scheme = "https"
+	case "http", "https":
+	default:
+		return ""
+	}
+	parsed.Path = ""
+	parsed.RawQuery = ""
+	parsed.Fragment = ""
+	return parsed.String()
+}

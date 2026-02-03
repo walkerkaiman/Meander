@@ -13,6 +13,8 @@ type Store interface {
 	ListRules(ctx context.Context) ([]models.Rule, error)
 	SaveStateSnapshot(ctx context.Context, state models.GlobalState) error
 	LoadStateSnapshot(ctx context.Context) (models.GlobalState, bool, error)
+	GetRuleLastFired(ctx context.Context, ruleID string) (time.Time, bool, error)
+	SetRuleLastFired(ctx context.Context, ruleID string, ts time.Time) error
 }
 
 type Broadcaster interface {
@@ -49,7 +51,7 @@ func (l *Loop) OverrideState(state string, variables map[string]interface{}) boo
 	}
 }
 
-func (l *Loop) Run(ctx context.Context, eventCh <-chan models.InputEvent) {
+func (l *Loop) Run(ctx context.Context, eventCh <-chan models.Event) {
 	state := l.initial
 	if snapshot, ok, err := l.store.LoadStateSnapshot(ctx); err == nil && ok {
 		state = snapshot
@@ -90,8 +92,18 @@ func (l *Loop) Run(ctx context.Context, eventCh <-chan models.InputEvent) {
 			if err != nil {
 				continue
 			}
-			next := ApplyRules(state, event, rules)
-			if stateChanged(state, next) {
+			next, fired, err := EvaluateRules(state, event, rules,
+				func(ruleID string) (time.Time, bool, error) {
+					return l.store.GetRuleLastFired(ctx, ruleID)
+				},
+				func(ruleID string, ts time.Time) error {
+					return l.store.SetRuleLastFired(ctx, ruleID, ts)
+				},
+			)
+			if err != nil {
+				continue
+			}
+			if fired {
 				next.Timestamp = time.Now().UTC()
 				next.Version = state.Version + 1
 				log.Printf("state: rule %s -> %s (v%d)", state.State, next.State, next.Version)

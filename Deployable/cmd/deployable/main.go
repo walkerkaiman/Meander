@@ -20,14 +20,16 @@ func main() {
 		cfg.ServerURL, cfg.DataDir, cfg.AssetsDir, cfg.WebListenAddr, cfg.Offline,
 	)
 	rt := runtime.NewRuntime(runtime.Config{
-		DataDir:         cfg.DataDir,
-		AssetsDir:       cfg.AssetsDir,
-		AssetsSourceDir: cfg.AssetsSourceDir,
-		AssetsSourceURL: cfg.AssetsSourceURL,
-		PlaybackBackend: cfg.PlaybackBackend,
-		VLCPath:         cfg.VLCPath,
-		AssetsCleanup:  cfg.AssetsCleanup,
-		VLCDebug:        cfg.VLCDebug,
+		DataDir:            cfg.DataDir,
+		AssetsDir:          cfg.AssetsDir,
+		AssetsSourceDir:    cfg.AssetsSourceDir,
+		AssetsSourceURL:    cfg.AssetsSourceURL,
+		ServerHTTPBaseURL:  config.DeriveServerBaseURL(cfg.ServerURL),
+		AgentVersion:       cfg.AgentVersion,
+		PlaybackBackend:    cfg.PlaybackBackend,
+		VLCPath:            cfg.VLCPath,
+		AssetsCleanup:      cfg.AssetsCleanup,
+		VLCDebug:           cfg.VLCDebug,
 	})
 	if err := rt.Boot(); err != nil {
 		log.Fatalf("boot failed: %v", err)
@@ -61,7 +63,10 @@ func main() {
 		}()
 	}
 
-	webServer := &web.Server{Runtime: rt}
+	webServer := &web.Server{
+		Runtime:   rt,
+		EventsURL: config.DeriveEventsURL(cfg.ServerURL),
+	}
 	go func() {
 		if err := webServer.Listen(cfg.WebListenAddr); err != nil {
 			log.Printf("web server stopped: %v", err)

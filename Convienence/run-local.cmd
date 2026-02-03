@@ -32,7 +32,7 @@ set "SERVER_URL=ws://localhost%STATE_SERVER_ADDR%/ws/deployable"
 
 echo Starting State Server on %STATE_SERVER_ADDR%...
 set "STATE_SERVER_LISTEN=%STATE_SERVER_ADDR%"
-set "STATE_SERVER_ASSETS_DIR=%REPO_ROOT%\\Assets"
+set "STATE_SERVER_ASSETS_DIR=%STATE_SERVER_DIR%\\Assets"
 start "State Server" "%STATE_SERVER_DIR%\\state-server.exe"
 
 set "HEALTH_URL=http://localhost%STATE_SERVER_ADDR%/health"
@@ -52,7 +52,7 @@ set "DEPLOYABLE_ASSETS_DIR=%DEPLOYABLE_DIR%\\Assets"
 set "DEPLOYABLE_ASSETS_SOURCE_URL=http://localhost%STATE_SERVER_ADDR%/assets"
 set "DEPLOYABLE_ASSETS_CLEANUP=false"
 echo Starting Deployable (web=%DEPLOYABLE_WEB_ADDR%, server=%SERVER_URL%)...
-start "Deployable" "%DEPLOYABLE_DIR%\\deployable.exe" --server "%SERVER_URL%" --web "%DEPLOYABLE_WEB_ADDR%" --playback-backend "%PLAYBACK_BACKEND%" --diagnostic-showlogic
+start "Deployable" "%DEPLOYABLE_DIR%\\deployable.exe" --server "%SERVER_URL%" --web "%DEPLOYABLE_WEB_ADDR%" --playback-backend "%PLAYBACK_BACKEND%"
 
 echo Done.
 endlocal

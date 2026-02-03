@@ -26,7 +26,7 @@ $serverUrl = "ws://localhost$StateServerAddr/ws/deployable"
 
 Write-Host "Starting State Server on $StateServerAddr..."
 $env:STATE_SERVER_LISTEN = $StateServerAddr
-$env:STATE_SERVER_ASSETS_DIR = (Join-Path $repoRoot "Assets")
+$env:STATE_SERVER_ASSETS_DIR = (Join-Path $stateServerDir "Assets")
 Start-Process -FilePath (Join-Path $stateServerDir "state-server.exe") `
   -WorkingDirectory $stateServerDir `
   -NoNewWindow:$false
@@ -58,8 +58,7 @@ Start-Process -FilePath (Join-Path $deployableDir "deployable.exe") `
   -ArgumentList @(
     "--server", $serverUrl,
     "--web", $DeployableWebAddr,
-    "--playback-backend", $PlaybackBackend,
-    "--diagnostic-showlogic"
+    "--playback-backend", $PlaybackBackend
   ) `
   -NoNewWindow:$false
 

@@ -37,7 +37,7 @@ type InputPort struct {
 
 type RegisterDeployableResponse struct {
 	Known        bool   `json:"known"`
-	AssignedRole string `json:"assigned_role"`
+	AssignedLogicID string `json:"assigned_logic_id"`
 	NeedsAssign  bool   `json:"needs_assignment"`
 	Message      string `json:"message"`
 }
@@ -46,7 +46,7 @@ type RegisterDeployableResponse struct {
 
 type ShowLogicPackage struct {
 	PackageID             string          `json:"package_id"`
-	Role                  string          `json:"role"`
+	LogicID               string          `json:"logic_id"`
 	LogicVersion          string          `json:"logic_version"`
 	EngineContractVersion string          `json:"engine_contract_version"`
 	ShowLogic             json.RawMessage `json:"show_logic"`
@@ -64,19 +64,17 @@ type DeployableAckRequest struct {
 
 // ---------- Event ingestion ----------
 
-type InputEvent struct {
-	DeployableID string      `json:"deployable_id"`
-	Timestamp    time.Time   `json:"timestamp"`
-	InputID      string      `json:"input_id"`
-	EventType    string      `json:"event_type"`
-	Value        interface{} `json:"value"`
+type SignalsIngestRequest struct {
+	DeployableID string         `json:"deployable_id"`
+	Timestamp    int64          `json:"timestamp"`
+	Signals      map[string]any `json:"signals"`
 }
 
 // ---------- Deployable registry view ----------
 
 type DeployableRecord struct {
 	DeployableID string         `json:"deployable_id"`
-	AssignedRole string         `json:"assigned_role"`
+	AssignedLogicID string      `json:"assigned_logic_id"`
 	Status       string         `json:"status"`
 	LastSeen     time.Time      `json:"last_seen"`
 	Capabilities DeployableCaps `json:"capabilities"`
@@ -85,7 +83,7 @@ type DeployableRecord struct {
 // ---------- Role update ----------
 
 type UpdateDeployableRequest struct {
-	AssignedRole string `json:"assigned_role"`
+	AssignedLogicID string `json:"assigned_logic_id"`
 }
 
 // ---------- State broadcast ----------
@@ -113,7 +111,7 @@ type DeployableHello struct {
 	IP               string           `json:"ip"`
 	AgentVersion     string           `json:"agent_version"`
 	PairingCode      string           `json:"pairing_code,omitempty"`
-	AssignedRoleID   string           `json:"assigned_role_id,omitempty"`
+	AssignedLogicID  string           `json:"assigned_logic_id,omitempty"`
 	ProfileVersion   int              `json:"assigned_profile_version,omitempty"`
 	ShowLogicVersion int              `json:"assigned_show_logic_version,omitempty"`
 	Capabilities     CapabilityReport `json:"capabilities"`
@@ -146,11 +144,12 @@ type ExecutionProfile struct {
 }
 
 type ShowLogicDefinition struct {
-	LogicID      string      `json:"logic_id"`
-	Name         string      `json:"name"`
-	DeployableID string      `json:"deployable_id"`
-	Version      int         `json:"version"`
-	States       []ShowState `json:"states"`
+	LogicID      string             `json:"logic_id"`
+	Name         string             `json:"name"`
+	DeployableID string             `json:"deployable_id"`
+	Version      int                `json:"version"`
+	Signals      []SignalDefinition `json:"signals,omitempty"`
+	States       []ShowState        `json:"states"`
 }
 
 type ShowState struct {
@@ -177,9 +176,9 @@ type TimerDeclaration struct {
 }
 
 type SensorHandler struct {
-	SensorID  string         `json:"sensor_id"`
-	EventType string         `json:"event_type"`
-	Condition map[string]any `json:"condition"`
+	SensorID  string           `json:"sensor_id"`
+	EventType string           `json:"event_type"`
+	Condition map[string]any   `json:"condition"`
 	Actions   []ActionTemplate `json:"actions"`
 }
 
@@ -189,27 +188,26 @@ type TimerHandler struct {
 }
 
 type AssignRoleMessage struct {
-	Type      string           `json:"type"`
-	RoleID    string           `json:"role_id"`
-	ServerID  string           `json:"server_id"`
-	Profile   ExecutionProfile `json:"profile"`
+	Type      string              `json:"type"`
+	LogicID   string              `json:"logic_id"`
+	ServerID  string              `json:"server_id"`
+	Profile   ExecutionProfile    `json:"profile"`
 	ShowLogic ShowLogicDefinition `json:"show_logic"`
-	Name      string           `json:"name,omitempty"`
-	Location  string           `json:"location,omitempty"`
+	Name      string              `json:"name,omitempty"`
 }
 
 type AssignRoleAck struct {
 	Type     string `json:"type"`
 	DeviceID string `json:"device_id"`
-	RoleID   string `json:"role_id"`
+	LogicID  string `json:"logic_id"`
 	Status   string `json:"status"`
 	Error    string `json:"error,omitempty"`
 }
 
 type DeployableAssignRequest struct {
 	Name          string              `json:"name"`
-	Location      string              `json:"location"`
-	RoleID        string              `json:"role_id"`
+	LogicID       string              `json:"logic_id"`
+	Tags          []string            `json:"tags,omitempty"`
 	Profile       ExecutionProfile    `json:"profile"`
 	ShowLogic     ShowLogicDefinition `json:"show_logic"`
 	ShowLogicFile string              `json:"show_logic_file"`
@@ -217,24 +215,106 @@ type DeployableAssignRequest struct {
 
 // ---------- Rules ----------
 
+type SignalValueType string
+
+const (
+	SignalBool    SignalValueType = "bool"
+	SignalNumber  SignalValueType = "number"
+	SignalVector2 SignalValueType = "vector2"
+	SignalString  SignalValueType = "string"
+)
+
+type SignalValue struct {
+	Type  SignalValueType `json:"type"`
+	Value any             `json:"value"`
+}
+
+type SignalDefinition struct {
+	Name string          `json:"name"`
+	Type SignalValueType `json:"type"`
+}
+
+type DeployableContext struct {
+	DeployableID string   `json:"deployable_id"`
+	LogicID      string   `json:"logic_id"`
+	Tags         []string `json:"tags"`
+}
+
+func (c *DeployableContext) UnmarshalJSON(data []byte) error {
+	type alias DeployableContext
+	var raw struct {
+		alias
+		Role string `json:"role"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*c = DeployableContext(raw.alias)
+	if c.LogicID == "" {
+		c.LogicID = raw.Role
+	}
+	return nil
+}
+
+type Event struct {
+	DeployableID string                 `json:"deployable_id"`
+	LogicID      string                 `json:"logic_id"`
+	Tags         []string               `json:"tags"`
+	Timestamp    time.Time              `json:"timestamp"`
+	Signals      map[string]SignalValue `json:"signals"`
+}
+
 type Rule struct {
-	RuleID string   `json:"rule_id"`
-	When   RuleWhen `json:"when"`
-	Then   RuleThen `json:"then"`
+	ID      string         `json:"id"`
+	Enabled bool           `json:"enabled"`
+	When    ConditionGroup `json:"when"`
+	Then    Action         `json:"then"`
+	Timing  *Timing        `json:"timing,omitempty"`
 }
 
-type RuleWhen struct {
-	State      string          `json:"state"`
-	Conditions []RuleCondition `json:"conditions"`
+type ConditionGroup struct {
+	All []Condition `json:"all,omitempty"`
+	Any []Condition `json:"any,omitempty"`
 }
 
-type RuleCondition struct {
-	Field string      `json:"field"`
-	Op    string      `json:"op"`
-	Value interface{} `json:"value"`
+type Condition struct {
+	Source  *SourceSelector `json:"source,omitempty"`
+	Signal  string          `json:"signal,omitempty"`
+	Op      string          `json:"op,omitempty"`
+	Value   any             `json:"value,omitempty"`
+	StateIs *string         `json:"state_is,omitempty"`
 }
 
-type RuleThen struct {
-	SetState     string                 `json:"set_state"`
-	SetVariables map[string]interface{} `json:"set_variables"`
+type SourceSelector struct {
+	Tags         []string `json:"tags,omitempty"`
+	LogicIDs     []string `json:"logic_ids,omitempty"`
+	DeployableIDs []string `json:"deployable_ids,omitempty"`
+}
+
+func (s *SourceSelector) UnmarshalJSON(data []byte) error {
+	type alias SourceSelector
+	var raw struct {
+		alias
+		Roles []string `json:"roles,omitempty"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*s = SourceSelector(raw.alias)
+	if len(s.LogicIDs) == 0 {
+		s.LogicIDs = raw.Roles
+	}
+	return nil
+}
+
+type Timing struct {
+	CooldownMS int64 `json:"cooldown_ms"`
+}
+
+type Action struct {
+	SetState string `json:"set_state"`
+}
+
+type State struct {
+	Name string `json:"name"`
 }

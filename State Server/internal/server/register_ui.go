@@ -39,14 +39,6 @@ const registerUIHTML = `<!doctype html>
       <select id="reassignShowLogic"></select>
     </div>
     <div class="row">
-      <label>Location</label>
-      <input id="reassignLocation" placeholder="Location"/>
-    </div>
-    <div class="row">
-      <label>Role ID</label>
-      <input id="reassignRoleId" placeholder="role-a"/>
-    </div>
-    <div class="row">
       <label>Profile JSON</label>
       <textarea id="reassignProfile">{ "profile_id": "default", "version": 1, "requires": {} }</textarea>
     </div>
@@ -116,14 +108,6 @@ const registerUIHTML = `<!doctype html>
           '<select data-field="show_logic_file"></select>' +
         '</div>' +
         '<div class="row">' +
-          '<label>Location</label>' +
-          '<input data-field="location" placeholder="Location"/>' +
-        '</div>' +
-        '<div class="row">' +
-          '<label>Role ID</label>' +
-          '<input data-field="role_id" placeholder="role-a"/>' +
-        '</div>' +
-        '<div class="row">' +
           '<label>Profile JSON</label>' +
           '<textarea data-field="profile">{ "profile_id": "default", "version": 1, "requires": {} }</textarea>' +
         '</div>' +
@@ -138,8 +122,6 @@ const registerUIHTML = `<!doctype html>
       const btn = card.querySelector('button[data-field="assign"]');
       const status = card.querySelector('code[data-field="status"]');
       btn.addEventListener('click', async () => {
-        const location = card.querySelector('input[data-field="location"]').value.trim();
-        const roleId = card.querySelector('input[data-field="role_id"]').value.trim();
         const showLogicFile = card.querySelector('select[data-field="show_logic_file"]').value;
         let profile;
         try {
@@ -157,8 +139,6 @@ const registerUIHTML = `<!doctype html>
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            location,
-            role_id: roleId,
             profile,
             show_logic_file: showLogicFile
           })
@@ -178,11 +158,11 @@ const registerUIHTML = `<!doctype html>
     }
 
     function isPending(item) {
-      return !item.assigned_role_id;
+      return !item.assigned_logic_id;
     }
 
     function isOnline(item) {
-      return item.assigned_role_id && item.connected;
+      return item.assigned_logic_id && item.connected;
     }
 
     function upsert(item) {
@@ -215,11 +195,11 @@ const registerUIHTML = `<!doctype html>
           (item.name || '') +
         '</span></div>' +
         '<div class="meta">' +
-          'role: ' + (item.assigned_role_id || 'n/a') +
+          'show logic: ' + (item.assigned_logic_id || 'n/a') +
           ' | status: ' + (item.status || 'ACTIVE') +
           ' | connected: ' + item.connected +
         '</div>' +
-        '<div class="meta">location: ' + (item.location || '') + '</div>';
+        '';
       return card;
     }
 
@@ -232,7 +212,7 @@ const registerUIHTML = `<!doctype html>
         list.appendChild(card);
       } else {
         card.querySelector('.meta').textContent =
-          'role: ' + (item.assigned_role_id || 'n/a') +
+          'show logic: ' + (item.assigned_logic_id || 'n/a') +
           ' | status: ' + (item.status || 'ACTIVE') +
           ' | connected: ' + item.connected;
       }
@@ -305,8 +285,6 @@ const registerUIHTML = `<!doctype html>
     document.getElementById('reassignButton').addEventListener('click', async () => {
       const status = document.getElementById('reassignStatus');
       const deployableId = document.getElementById('reassignDeployable').value;
-      const roleId = document.getElementById('reassignRoleId').value.trim();
-      const location = document.getElementById('reassignLocation').value.trim();
       const showLogicFile = document.getElementById('reassignShowLogic').value;
       let profile;
       if (!deployableId) {
@@ -328,8 +306,6 @@ const registerUIHTML = `<!doctype html>
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          location,
-          role_id: roleId,
           profile,
           show_logic_file: showLogicFile
         })

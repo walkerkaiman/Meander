@@ -1,13 +1,17 @@
 package runtime
 
 import (
+	"bytes"
 	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"time"
 
 	"deployable/internal/actions"
@@ -22,40 +26,47 @@ import (
 )
 
 type Runtime struct {
-	Device      types.LocalDevice
-	Assignment  types.LocalAssignment
-	Profile     types.ExecutionProfile
-	ShowLogic   types.ShowLogicDefinition
+	Device       types.LocalDevice
+	Assignment   types.LocalAssignment
+	Profile      types.ExecutionProfile
+	ShowLogic    types.ShowLogicDefinition
 	Capabilities types.CapabilityReport
-	PairingCode string
+	PairingCode  string
 
-	store   *storage.Store
-	syncer  *assets.Syncer
-	engine  *engine.Engine
-	actions chan types.EngineAction
-	sensors *sensors.Manager
-	player  *playback.Manager
+	store        *storage.Store
+	syncer       *assets.Syncer
+	engine       *engine.Engine
+	actions      chan types.EngineAction
+	sensors      *sensors.Manager
+	player       *playback.Manager
 	actionErrors chan actions.DispatchError
 
 	serverIncoming chan server.Incoming
 	serverOutgoing chan any
 
-	lastState      types.GlobalStateUpdate
-	lastConnected   time.Time
+	lastState        types.GlobalStateUpdate
+	lastConnected    time.Time
 	supportedActions map[string]bool
-	engineStarted  bool
-	assetsCleanup  bool
+	engineStarted    bool
+	assetsCleanup    bool
+	serverHTTPBaseURL string
+	httpClient         *http.Client
+	showLogicRetryMu   sync.Mutex
+	showLogicRetrying  bool
+	agentVersion       string
 }
 
 type Config struct {
-	DataDir         string
-	AssetsDir       string
-	AssetsSourceDir string
-	AssetsSourceURL string
-	PlaybackBackend string
-	VLCPath         string
-	AssetsCleanup  bool
-	VLCDebug        bool
+	DataDir           string
+	AssetsDir         string
+	AssetsSourceDir   string
+	AssetsSourceURL   string
+	ServerHTTPBaseURL string
+	AgentVersion      string
+	PlaybackBackend   string
+	VLCPath           string
+	AssetsCleanup     bool
+	VLCDebug          bool
 }
 
 func NewRuntime(cfg Config) *Runtime {
@@ -91,17 +102,20 @@ func NewRuntime(cfg Config) *Runtime {
 	}, actionErrors)
 	engineInstance := engine.NewEngine()
 	rt := &Runtime{
-		store:   store,
-		syncer:  &assets.Syncer{AssetsDir: cfg.AssetsDir, SourceDir: cfg.AssetsSourceDir, SourceURL: cfg.AssetsSourceURL},
-		engine:  engineInstance,
-		actions: actionsChan,
-		sensors: sensors.NewManager(make(chan types.SensorEvent, 256)),
-		player:  player,
-		actionErrors: actionErrors,
-		serverIncoming: make(chan server.Incoming, 32),
-		serverOutgoing: make(chan any, 32),
+		store:            store,
+		syncer:           &assets.Syncer{AssetsDir: cfg.AssetsDir, SourceDir: cfg.AssetsSourceDir, SourceURL: cfg.AssetsSourceURL},
+		engine:           engineInstance,
+		actions:          actionsChan,
+		sensors:          sensors.NewManager(make(chan types.SensorEvent, 256)),
+		player:           player,
+		actionErrors:     actionErrors,
+		serverIncoming:   make(chan server.Incoming, 32),
+		serverOutgoing:   make(chan any, 32),
 		supportedActions: disp.SupportedActions(),
-		assetsCleanup:  cfg.AssetsCleanup,
+		assetsCleanup:    cfg.AssetsCleanup,
+		serverHTTPBaseURL: cfg.ServerHTTPBaseURL,
+		httpClient:        &http.Client{Timeout: 5 * time.Second},
+		agentVersion:      cfg.AgentVersion,
 	}
 	go disp.Run(make(chan struct{}))
 	go rt.forwardActions()
@@ -125,11 +139,11 @@ func (r *Runtime) Boot() error {
 		return err
 	}
 	r.Assignment = assignment
-	if assignment.RoleID == "" {
+	if assignment.LogicID == "" {
 		r.PairingCode = generatePairingCode()
 		log.Printf("boot: unassigned, pairing code=%s", r.PairingCode)
 	} else {
-		log.Printf("boot: assigned role=%s", assignment.RoleID)
+		log.Printf("boot: assigned logic=%s", assignment.LogicID)
 	}
 	caps, err := capabilities.Discover()
 	if err != nil {
@@ -152,10 +166,19 @@ func (r *Runtime) Boot() error {
 	if def, err := r.store.LoadShowLogic(); err == nil {
 		r.ShowLogic = def
 		log.Printf("boot: loaded show logic id=%s name=%s version=%d", def.LogicID, def.Name, def.Version)
-		if err := r.engine.Load(def); err == nil && assignment.RoleID != "" {
+		if err := r.engine.Load(def); err == nil && assignment.LogicID != "" {
 			r.engine.Start(r.lastState.State)
 			r.engineStarted = true
 			log.Printf("boot: engine started with existing assignment")
+		}
+		if assignment.LogicID != "" {
+			requiredAssets := requiredAssetsFromLogic(def)
+			if len(requiredAssets) > 0 {
+				log.Printf("boot: verifying assets count=%d", len(requiredAssets))
+				if err := r.syncer.EnsureAssets(requiredAssets); err != nil {
+					log.Printf("boot: asset verification failed (will retry on reconnect): %v", err)
+				}
+			}
 		}
 	}
 	r.sensors.Start()
@@ -172,7 +195,7 @@ func (r *Runtime) ServerHello(agentVersion string) server.HelloMessage {
 		IP:               server.LocalIP(),
 		AgentVersion:     agentVersion,
 		PairingCode:      r.PairingCode,
-		AssignedRoleID:   r.Assignment.RoleID,
+		AssignedLogicID:  r.Assignment.LogicID,
 		ProfileVersion:   r.Assignment.ProfileVersion,
 		ShowLogicVersion: r.Assignment.ShowLogicVersion,
 		Capabilities:     r.Capabilities,
@@ -235,6 +258,202 @@ func (r *Runtime) ApplyDiagnosticShowLogic() error {
 
 func (r *Runtime) SetConnected(ts time.Time) {
 	r.lastConnected = ts
+	r.registerWithServer()
+	r.ensureShowLogicFromServer()
+	if r.Assignment.LogicID != "" && r.ShowLogic.LogicID != "" {
+		requiredAssets := requiredAssetsFromLogic(r.ShowLogic)
+		if len(requiredAssets) > 0 {
+			log.Printf("connect: verifying assets count=%d", len(requiredAssets))
+			if err := r.syncer.EnsureAssets(requiredAssets); err != nil {
+				log.Printf("connect: asset verification failed: %v", err)
+			}
+		}
+	}
+}
+
+type registerRequest struct {
+	DeployableID string          `json:"deployable_id"`
+	Hostname     string          `json:"hostname"`
+	Capabilities registerCaps    `json:"capabilities"`
+	AgentVersion string          `json:"agent_version"`
+}
+
+type registerCaps struct {
+	VideoOutputs  []outputPort `json:"video_outputs"`
+	AudioOutputs  []outputPort `json:"audio_outputs"`
+	Inputs        []inputPort  `json:"inputs"`
+	SerialDevices []string     `json:"serial_devices"`
+	HasDisplay    bool         `json:"has_display"`
+	HasAudio      bool         `json:"has_audio"`
+}
+
+type outputPort struct {
+	ID   string `json:"id"`
+	Type string `json:"type,omitempty"`
+}
+
+type inputPort struct {
+	ID   string `json:"id"`
+	Type string `json:"type"`
+}
+
+func (r *Runtime) registerWithServer() {
+	if r.serverHTTPBaseURL == "" {
+		return
+	}
+	if r.Device.DeviceID == "" {
+		return
+	}
+	url := fmt.Sprintf("%s/api/v1/register", r.serverHTTPBaseURL)
+	payload := registerRequest{
+		DeployableID: r.Device.DeviceID,
+		Hostname:     server.Hostname(),
+		AgentVersion: r.agentVersion,
+		Capabilities: buildRegisterCaps(r.Capabilities),
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return
+	}
+	resp, err := r.httpClient.Post(url, "application/json", bytes.NewReader(body))
+	if err != nil {
+		log.Printf("registration: http register failed: %v", err)
+		return
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("registration: http register failed: %s", resp.Status)
+	}
+}
+
+func buildRegisterCaps(caps types.CapabilityReport) registerCaps {
+	videoOutputs := []outputPort{}
+	if len(caps.VideoOutputDetails) > 0 {
+		for _, item := range caps.VideoOutputDetails {
+			if item.ID == "" {
+				continue
+			}
+			videoOutputs = append(videoOutputs, outputPort{
+				ID:   item.ID,
+				Type: item.Type,
+			})
+		}
+	} else {
+		for _, item := range caps.VideoOutputs {
+			videoOutputs = append(videoOutputs, outputPort{ID: item})
+		}
+	}
+	audioOutputs := []outputPort{}
+	if len(caps.AudioOutputDetails) > 0 {
+		for _, item := range caps.AudioOutputDetails {
+			if item.ID == "" {
+				continue
+			}
+			audioOutputs = append(audioOutputs, outputPort{
+				ID:   item.ID,
+				Type: item.Type,
+			})
+		}
+	} else {
+		for _, item := range caps.AudioOutputs {
+			audioOutputs = append(audioOutputs, outputPort{ID: item})
+		}
+	}
+	inputs := []inputPort{}
+	for _, item := range caps.VideoInputs {
+		inputs = append(inputs, inputPort{ID: item, Type: "video"})
+	}
+	for _, item := range caps.AudioInputs {
+		inputs = append(inputs, inputPort{ID: item, Type: "audio"})
+	}
+	return registerCaps{
+		VideoOutputs:  videoOutputs,
+		AudioOutputs:  audioOutputs,
+		Inputs:        inputs,
+		SerialDevices: caps.SerialPorts,
+		HasDisplay:    len(caps.VideoOutputs) > 0 || len(caps.VideoOutputDetails) > 0,
+		HasAudio:      len(caps.AudioOutputs) > 0 || len(caps.AudioOutputDetails) > 0,
+	}
+}
+
+func (r *Runtime) ensureShowLogicFromServer() {
+	if r.serverHTTPBaseURL == "" {
+		return
+	}
+	if r.Assignment.LogicID == "" {
+		return
+	}
+	if r.ShowLogic.LogicID != "" && len(r.ShowLogic.States) > 0 {
+		return
+	}
+	url := fmt.Sprintf("%s/api/v1/deployables/%s/show-logic", r.serverHTTPBaseURL, r.Device.DeviceID)
+	resp, err := r.httpClient.Get(url)
+	if err != nil {
+		log.Printf("show logic fetch failed: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("show logic fetch failed: %s", resp.Status)
+		if resp.StatusCode == http.StatusConflict {
+			r.scheduleShowLogicRetry()
+		}
+		return
+	}
+	var pkg struct {
+		ShowLogic json.RawMessage `json:"show_logic"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&pkg); err != nil {
+		log.Printf("show logic decode failed: %v", err)
+		return
+	}
+	if len(pkg.ShowLogic) == 0 {
+		log.Printf("show logic fetch failed: empty payload")
+		return
+	}
+	var def types.ShowLogicDefinition
+	if err := json.Unmarshal(pkg.ShowLogic, &def); err != nil {
+		log.Printf("show logic parse failed: %v", err)
+		return
+	}
+	if err := validateShowLogic(def, r.supportedActions); err != nil {
+		log.Printf("show logic validation failed: %v", err)
+		return
+	}
+	if err := r.store.SaveShowLogic(def); err != nil {
+		log.Printf("show logic save failed: %v", err)
+		return
+	}
+	r.ShowLogic = def
+	if err := r.engine.Load(def); err != nil {
+		log.Printf("show logic engine load failed: %v", err)
+		return
+	}
+	if r.engineStarted {
+		r.engine.Stop()
+		r.engine.Start(r.lastState.State)
+		r.engineStarted = true
+	}
+	log.Printf("show logic fetched from server id=%s version=%d", def.LogicID, def.Version)
+}
+
+func (r *Runtime) scheduleShowLogicRetry() {
+	r.showLogicRetryMu.Lock()
+	if r.showLogicRetrying {
+		r.showLogicRetryMu.Unlock()
+		return
+	}
+	r.showLogicRetrying = true
+	r.showLogicRetryMu.Unlock()
+	go func() {
+		defer func() {
+			r.showLogicRetryMu.Lock()
+			r.showLogicRetrying = false
+			r.showLogicRetryMu.Unlock()
+		}()
+		time.Sleep(2 * time.Second)
+		r.ensureShowLogicFromServer()
+	}()
 }
 
 func (r *Runtime) HandleServerMessage(msg server.Incoming) {
@@ -249,8 +468,8 @@ func (r *Runtime) HandleServerMessage(msg server.Incoming) {
 			Supported: supported,
 		}
 	case server.AssignRoleMessage:
-		log.Printf("registration: assign_role received role=%s profile=%s@%d logic=%s@%d",
-			payload.RoleID, payload.Profile.ProfileID, payload.Profile.Version,
+		log.Printf("registration: assign_role received logic=%s profile=%s@%d logic=%s@%d",
+			payload.LogicID, payload.Profile.ProfileID, payload.Profile.Version,
 			payload.ShowLogic.LogicID, payload.ShowLogic.Version,
 		)
 		if err := r.handleAssign(payload); err != nil {
@@ -258,7 +477,7 @@ func (r *Runtime) HandleServerMessage(msg server.Incoming) {
 			r.serverOutgoing <- server.AssignRoleAck{
 				Type:     "assign_role_ack",
 				DeviceID: r.Device.DeviceID,
-				RoleID:   payload.RoleID,
+				LogicID:  payload.LogicID,
 				Status:   "error",
 				Error:    err.Error(),
 			}
@@ -267,7 +486,7 @@ func (r *Runtime) HandleServerMessage(msg server.Incoming) {
 			r.serverOutgoing <- server.AssignRoleAck{
 				Type:     "assign_role_ack",
 				DeviceID: r.Device.DeviceID,
-				RoleID:   payload.RoleID,
+				LogicID:  payload.LogicID,
 				Status:   "ok",
 			}
 		}
@@ -314,7 +533,7 @@ func (r *Runtime) handleAssign(msg server.AssignRoleMessage) error {
 	}
 	assignment := types.LocalAssignment{
 		ServerID:         msg.ServerID,
-		RoleID:           msg.RoleID,
+		LogicID:          msg.LogicID,
 		ProfileID:        msg.Profile.ProfileID,
 		ProfileVersion:   msg.Profile.Version,
 		ShowLogicID:      msg.ShowLogic.LogicID,
@@ -323,8 +542,8 @@ func (r *Runtime) handleAssign(msg server.AssignRoleMessage) error {
 	if err := r.store.SaveAssignment(assignment); err != nil {
 		return err
 	}
-	log.Printf("registration: saved assignment role=%s profile=%s@%d logic=%s@%d",
-		assignment.RoleID, assignment.ProfileID, assignment.ProfileVersion,
+	log.Printf("registration: saved assignment logic=%s profile=%s@%d logic=%s@%d",
+		assignment.LogicID, assignment.ProfileID, assignment.ProfileVersion,
 		assignment.ShowLogicID, assignment.ShowLogicVersion,
 	)
 	r.Assignment = assignment
@@ -399,13 +618,13 @@ func (r *Runtime) TriggerIdentify() bool {
 
 func (r *Runtime) Status() map[string]any {
 	return map[string]any{
-		"device":       r.Device,
-		"assignment":   r.Assignment,
-		"profile":      r.Profile,
-		"show_logic":   r.ShowLogic,
-		"capabilities": r.Capabilities,
-		"pairing_code": r.PairingCode,
-		"last_state":   r.lastState,
+		"device":         r.Device,
+		"assignment":     r.Assignment,
+		"profile":        r.Profile,
+		"show_logic":     r.ShowLogic,
+		"capabilities":   r.Capabilities,
+		"pairing_code":   r.PairingCode,
+		"last_state":     r.lastState,
 		"last_connected": r.lastConnected,
 		"outputs": map[string]any{
 			"playback": r.player.Snapshot(),
@@ -418,16 +637,16 @@ func buildOutputDevices(caps types.CapabilityReport) []playback.OutputDevice {
 	outputs := []playback.OutputDevice{}
 	for _, item := range caps.VideoOutputDetails {
 		outputs = append(outputs, playback.OutputDevice{
-			ID:    item.ID,
-			Name:  item.Name,
-			Type:  item.Type,
+			ID:   item.ID,
+			Name: item.Name,
+			Type: item.Type,
 		})
 	}
 	for _, item := range caps.AudioOutputDetails {
 		outputs = append(outputs, playback.OutputDevice{
-			ID:    item.ID,
-			Name:  item.Name,
-			Type:  item.Type,
+			ID:   item.ID,
+			Name: item.Name,
+			Type: item.Type,
 		})
 	}
 	return outputs
@@ -464,7 +683,7 @@ func buildDiagnosticShowLogic(caps types.CapabilityReport) types.ShowLogicDefini
 			Action: "play_video",
 			Target: target,
 			Params: map[string]any{
-				"file":       "diagnostic_video.mp4",
+				"file":       "diagnostic_video.mov",
 				"loop":       true,
 				"fade_in_ms": 250,
 			},
@@ -480,7 +699,7 @@ func buildDiagnosticShowLogic(caps types.CapabilityReport) types.ShowLogicDefini
 			Action: "play_audio",
 			Target: target,
 			Params: map[string]any{
-				"file":   "diagnostic_audio.mp3",
+				"file":   "diagnostic_audio.wav",
 				"loop":   true,
 				"volume": 0.8,
 			},
@@ -506,10 +725,10 @@ func buildDiagnosticShowLogic(caps types.CapabilityReport) types.ShowLogicDefini
 		Version:      1,
 		States: []types.ShowState{
 			{
-				Name:       "diagnostic",
-				OnEnter:    enterActions,
-				OnExit:     exitActions,
-				Timers:     []types.TimerDeclaration{},
+				Name:           "diagnostic",
+				OnEnter:        enterActions,
+				OnExit:         exitActions,
+				Timers:         []types.TimerDeclaration{},
 				TimerHandlers:  []types.TimerHandler{},
 				SensorHandlers: []types.SensorHandler{},
 			},
@@ -616,4 +835,3 @@ func generatePairingCode() string {
 	code = code % 1000000
 	return fmt.Sprintf("%06d", code)
 }
-

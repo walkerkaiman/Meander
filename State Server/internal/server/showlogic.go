@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -9,9 +10,9 @@ import (
 )
 
 func (s *Server) UpsertShowLogic(w http.ResponseWriter, r *http.Request) {
-	role := parseRoleParam(r)
-	if role == "" {
-		errorJSON(w, http.StatusBadRequest, "role required")
+	logicID := parseLogicParam(r)
+	if logicID == "" {
+		errorJSON(w, http.StatusBadRequest, "logic id required")
 		return
 	}
 	var pkg models.ShowLogicPackage
@@ -19,11 +20,11 @@ func (s *Server) UpsertShowLogic(w http.ResponseWriter, r *http.Request) {
 		errorJSON(w, http.StatusBadRequest, "invalid show logic payload")
 		return
 	}
-	if pkg.Role == "" {
-		pkg.Role = role
+	if pkg.LogicID == "" {
+		pkg.LogicID = logicID
 	}
-	if pkg.Role != role {
-		errorJSON(w, http.StatusBadRequest, "role mismatch")
+	if pkg.LogicID != logicID {
+		errorJSON(w, http.StatusBadRequest, "logic id mismatch")
 		return
 	}
 	if pkg.PackageID == "" {
@@ -37,9 +38,17 @@ func (s *Server) UpsertShowLogic(w http.ResponseWriter, r *http.Request) {
 		errorJSON(w, http.StatusInternalServerError, "failed to save show logic")
 		return
 	}
+	if len(pkg.ShowLogic) > 0 && s.rulesStore != nil {
+		var def models.ShowLogicDefinition
+		if err := json.Unmarshal(pkg.ShowLogic, &def); err == nil {
+			if len(def.Signals) > 0 {
+				_ = s.rulesStore.SaveSignalDefinitions(r.Context(), pkg.LogicID, def.Signals)
+			}
+		}
+	}
 	if deployables, err := s.store.ListDeployables(r.Context()); err == nil {
 		for _, dep := range deployables {
-			if dep.AssignedRole != role {
+			if dep.AssignedLogicID != logicID {
 				continue
 			}
 			_ = s.store.UpdateDeployableStatus(r.Context(), dep.DeployableID, statusRegistering)

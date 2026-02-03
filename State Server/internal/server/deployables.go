@@ -1,32 +1,35 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 
 	"state-server/internal/models"
 )
 
 type DeployableSession struct {
-	DeviceID         string                 `json:"device_id"`
-	Hostname         string                 `json:"hostname"`
-	IP               string                 `json:"ip"`
-	AgentVersion     string                 `json:"agent_version"`
-	PairingCode      string                 `json:"pairing_code"`
-	AssignedRoleID   string                 `json:"assigned_role_id"`
-	ProfileVersion   int                    `json:"assigned_profile_version"`
-	ShowLogicVersion int                    `json:"assigned_show_logic_version"`
+	DeviceID         string                  `json:"device_id"`
+	Hostname         string                  `json:"hostname"`
+	IP               string                  `json:"ip"`
+	AgentVersion     string                  `json:"agent_version"`
+	PairingCode      string                  `json:"pairing_code"`
+	AssignedLogicID  string                  `json:"assigned_logic_id"`
+	ProfileVersion   int                     `json:"assigned_profile_version"`
+	ShowLogicVersion int                     `json:"assigned_show_logic_version"`
 	Capabilities     models.CapabilityReport `json:"capabilities"`
-	LastSeen         time.Time              `json:"last_seen"`
-	Status           string                 `json:"status"`
-	Name             string                 `json:"name"`
-	Location         string                 `json:"location"`
-	Connected        bool                   `json:"connected"`
+	LastSeen         time.Time               `json:"last_seen"`
+	Status           string                  `json:"status"`
+	Name             string                  `json:"name"`
+	Location         string                  `json:"location"`
+	Connected        bool                    `json:"connected"`
 
 	conn    *websocket.Conn
 	writeMu sync.Mutex
@@ -77,7 +80,6 @@ func (s *Server) upsertDeployableSession(conn *websocket.Conn, hello models.Depl
 		return
 	}
 	s.deployableMu.Lock()
-	defer s.deployableMu.Unlock()
 	session := s.deployables[hello.DeviceID]
 	if session == nil {
 		session = &DeployableSession{DeviceID: hello.DeviceID}
@@ -87,26 +89,69 @@ func (s *Server) upsertDeployableSession(conn *websocket.Conn, hello models.Depl
 	session.IP = hello.IP
 	session.AgentVersion = hello.AgentVersion
 	session.PairingCode = hello.PairingCode
-	session.AssignedRoleID = hello.AssignedRoleID
+	session.AssignedLogicID = hello.AssignedLogicID
 	session.ProfileVersion = hello.ProfileVersion
 	session.ShowLogicVersion = hello.ShowLogicVersion
 	session.Capabilities = hello.Capabilities
 	session.LastSeen = time.Now().UTC()
 	session.Connected = true
 	session.conn = conn
-	if session.AssignedRoleID == "" {
+	if session.AssignedLogicID == "" {
 		session.Status = "PENDING"
 	} else {
 		session.Status = "ACTIVE"
 	}
-	log.Printf("registration: hello device_id=%s status=%s pairing=%s role=%s profile=%d logic=%d",
+	log.Printf("registration: hello device_id=%s status=%s pairing=%s logic=%s profile=%d logic_ver=%d",
 		session.DeviceID, session.Status, session.PairingCode,
-		session.AssignedRoleID, session.ProfileVersion, session.ShowLogicVersion,
+		session.AssignedLogicID, session.ProfileVersion, session.ShowLogicVersion,
 	)
-	if session.AssignedRoleID != "" {
-		log.Printf("registration: online device_id=%s role=%s", session.DeviceID, session.AssignedRoleID)
+	if session.AssignedLogicID != "" {
+		log.Printf("registration: online device_id=%s logic=%s", session.DeviceID, session.AssignedLogicID)
 	}
 	s.notifyUI("upsert", session)
+	s.deployableMu.Unlock()
+	s.maybeSendAssignOnHello(hello)
+}
+
+func (s *Server) maybeSendAssignOnHello(hello models.DeployableHello) {
+	if hello.DeviceID == "" || hello.AssignedLogicID == "" {
+		return
+	}
+	pkg, ok, err := s.store.GetLatestShowLogicForRole(context.Background(), hello.AssignedLogicID)
+	if err != nil || !ok || len(pkg.ShowLogic) == 0 {
+		return
+	}
+	currentLogicVersion := strconv.Itoa(hello.ShowLogicVersion)
+	if hello.ShowLogicVersion != 0 && pkg.LogicVersion == currentLogicVersion && hello.ProfileVersion != 0 {
+		return
+	}
+	var def models.ShowLogicDefinition
+	if err := json.Unmarshal(pkg.ShowLogic, &def); err != nil {
+		return
+	}
+	assign := models.AssignRoleMessage{
+		Type:     "assign_role",
+		LogicID:  hello.AssignedLogicID,
+		ServerID: s.serverVersion,
+		Profile: models.ExecutionProfile{
+			ProfileID: "default",
+			Version:   1,
+			Requires:  map[string]any{},
+		},
+		ShowLogic: def,
+	}
+	s.deployableMu.RLock()
+	session := s.deployables[hello.DeviceID]
+	s.deployableMu.RUnlock()
+	if session == nil || session.conn == nil || !session.Connected {
+		return
+	}
+	session.writeMu.Lock()
+	_ = session.conn.WriteJSON(assign)
+	session.writeMu.Unlock()
+	log.Printf("registration: auto-assign device_id=%s logic=%s pkg=%s@%s",
+		hello.DeviceID, hello.AssignedLogicID, pkg.PackageID, pkg.LogicVersion,
+	)
 }
 
 func (s *Server) markDeployableAssigned(ack models.AssignRoleAck) {
@@ -123,7 +168,7 @@ func (s *Server) markDeployableAssigned(ack models.AssignRoleAck) {
 		}
 		log.Printf("registration: assign_role_ack device_id=%s status=%s", ack.DeviceID, ack.Status)
 		if ack.Status == "ok" {
-			log.Printf("registration: complete device_id=%s role=%s", ack.DeviceID, session.AssignedRoleID)
+			log.Printf("registration: complete device_id=%s logic=%s", ack.DeviceID, session.AssignedLogicID)
 		}
 		s.notifyUI("assign_ack", session)
 	}
@@ -147,7 +192,7 @@ func (s *Server) ListPendingDeployables(w http.ResponseWriter, _ *http.Request) 
 	defer s.deployableMu.RUnlock()
 	out := []*DeployableSession{}
 	for _, session := range s.deployables {
-		if session.AssignedRoleID == "" {
+		if session.AssignedLogicID == "" {
 			out = append(out, session)
 		}
 	}
@@ -163,10 +208,6 @@ func (s *Server) AssignDeployable(w http.ResponseWriter, r *http.Request) {
 	var req models.DeployableAssignRequest
 	if err := decodeJSON(r, &req); err != nil {
 		errorJSON(w, http.StatusBadRequest, "invalid assign payload")
-		return
-	}
-	if req.RoleID == "" {
-		errorJSON(w, http.StatusBadRequest, "role_id required")
 		return
 	}
 	if req.Profile.ProfileID == "" || req.Profile.Version == 0 {
@@ -186,6 +227,25 @@ func (s *Server) AssignDeployable(w http.ResponseWriter, r *http.Request) {
 		errorJSON(w, http.StatusBadRequest, "show_logic required")
 		return
 	}
+	roleID := showLogic.LogicID
+
+	showLogicJSON, marshalErr := json.Marshal(showLogic)
+	if marshalErr != nil {
+		errorJSON(w, http.StatusInternalServerError, "failed to encode show logic")
+		return
+	}
+	pkg := models.ShowLogicPackage{
+		PackageID:             uuid.NewString(),
+		LogicID:               roleID,
+		LogicVersion:          strconv.Itoa(showLogic.Version),
+		EngineContractVersion: "1.0.0",
+		ShowLogic:             showLogicJSON,
+		ReferencedAssets:      []string{},
+	}
+	if err := s.store.SaveShowLogicPackage(r.Context(), pkg, "operator"); err != nil {
+		errorJSON(w, http.StatusInternalServerError, "failed to save show logic package")
+		return
+	}
 
 	s.deployableMu.RLock()
 	session := s.deployables[id]
@@ -197,12 +257,11 @@ func (s *Server) AssignDeployable(w http.ResponseWriter, r *http.Request) {
 
 	assign := models.AssignRoleMessage{
 		Type:      "assign_role",
-		RoleID:    req.RoleID,
+		LogicID:   roleID,
 		ServerID:  s.serverVersion,
 		Profile:   req.Profile,
 		ShowLogic: showLogic,
 		Name:      req.Name,
-		Location:  req.Location,
 	}
 
 	session.writeMu.Lock()
@@ -212,9 +271,20 @@ func (s *Server) AssignDeployable(w http.ResponseWriter, r *http.Request) {
 		errorJSON(w, http.StatusInternalServerError, "failed to send assign_role")
 		return
 	}
-	log.Printf("registration: assign_role sent device_id=%s role=%s name=%s location=%s",
-		id, req.RoleID, req.Name, req.Location,
+	log.Printf("registration: assign_role sent device_id=%s logic=%s name=%s",
+		id, roleID, req.Name,
 	)
+
+	if s.rulesStore != nil {
+		_ = s.rulesStore.SaveDeployableContext(r.Context(), models.DeployableContext{
+			DeployableID: id,
+			LogicID:      roleID,
+			Tags:         req.Tags,
+		})
+		if len(showLogic.Signals) > 0 {
+			_ = s.rulesStore.SaveSignalDefinitions(r.Context(), roleID, showLogic.Signals)
+		}
+	}
 
 	s.deployableMu.Lock()
 	if req.Name != "" {
@@ -222,8 +292,8 @@ func (s *Server) AssignDeployable(w http.ResponseWriter, r *http.Request) {
 	} else if showLogic.Name != "" {
 		session.Name = showLogic.Name
 	}
-	session.Location = req.Location
-	session.AssignedRoleID = req.RoleID
+	session.Location = ""
+	session.AssignedLogicID = roleID
 	session.Status = "ASSIGN_SENT"
 	s.deployableMu.Unlock()
 	s.notifyUI("assign_sent", session)
@@ -304,7 +374,7 @@ func (s *Server) pendingSessions() []*DeployableSession {
 	defer s.deployableMu.RUnlock()
 	out := []*DeployableSession{}
 	for _, session := range s.deployables {
-		if session.AssignedRoleID == "" {
+		if session.AssignedLogicID == "" {
 			out = append(out, session)
 		}
 	}
@@ -342,8 +412,8 @@ func (s *Server) notifyUI(event string, session *DeployableSession) {
 	for client := range s.uiClients {
 		client.writeMu.Lock()
 		_ = client.conn.WriteJSON(map[string]any{
-			"type":  event,
-			"item":  session,
+			"type": event,
+			"item": session,
 		})
 		client.writeMu.Unlock()
 	}

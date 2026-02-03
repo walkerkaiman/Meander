@@ -92,7 +92,7 @@ func (r *Runtime) Boot() error {
 		return err
 	}
 	r.Assignment = assignment
-	if assignment.RoleID == "" {
+	if assignment.LogicID == "" {
 		r.PairingCode = generatePairingCode()
 	}
 	caps, err := capabilities.Discover()
@@ -100,7 +100,7 @@ func (r *Runtime) Boot() error {
 		return err
 	}
 	r.Capabilities = caps
-	if assignment.RoleID != "" {
+	if assignment.LogicID != "" {
 		if profile, err := r.store.LoadProfile(); err == nil {
 			r.Profile = profile
 		}
@@ -124,7 +124,7 @@ func (r *Runtime) ServerHello(agentVersion string) server.HelloMessage {
 		IP:               server.LocalIP(),
 		AgentVersion:     agentVersion,
 		PairingCode:      r.PairingCode,
-		AssignedRoleID:   r.Assignment.RoleID,
+		AssignedLogicID:   r.Assignment.LogicID,
 		ProfileVersion:   r.Assignment.ProfileVersion,
 		ShowLogicVersion: r.Assignment.ShowLogicVersion,
 		Capabilities:     r.Capabilities,
@@ -161,7 +161,7 @@ func (r *Runtime) HandleServerMessage(msg server.Incoming) {
 			r.serverOutgoing <- server.AssignRoleAck{
 				Type:     "assign_role_ack",
 				DeviceID: r.Device.DeviceID,
-				RoleID:   payload.RoleID,
+				LogicID:   payload.LogicID,
 				Status:   "error",
 				Error:    err.Error(),
 			}
@@ -169,7 +169,7 @@ func (r *Runtime) HandleServerMessage(msg server.Incoming) {
 			r.serverOutgoing <- server.AssignRoleAck{
 				Type:     "assign_role_ack",
 				DeviceID: r.Device.DeviceID,
-				RoleID:   payload.RoleID,
+				LogicID:   payload.LogicID,
 				Status:   "ok",
 			}
 		}
@@ -205,7 +205,7 @@ func (r *Runtime) handleAssign(msg server.AssignRoleMessage) error {
 	}
 	assignment := types.LocalAssignment{
 		ServerID:         msg.ServerID,
-		RoleID:           msg.RoleID,
+		LogicID:           msg.LogicID,
 		ProfileID:        msg.Profile.ProfileID,
 		ProfileVersion:   msg.Profile.Version,
 		ShowLogicID:      msg.ShowLogic.LogicID,

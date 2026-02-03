@@ -1,6 +1,9 @@
 package types
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 type LocalDevice struct {
 	DeviceID  string    `json:"device_id"`
@@ -10,13 +13,29 @@ type LocalDevice struct {
 type LocalAssignment struct {
 	ServerID string `json:"server_id"`
 
-	RoleID string `json:"role_id"`
+	LogicID string `json:"logic_id"`
 
 	ProfileID      string `json:"profile_id"`
 	ProfileVersion int    `json:"profile_version"`
 
 	ShowLogicID      string `json:"show_logic_id"`
 	ShowLogicVersion int    `json:"show_logic_version"`
+}
+
+func (a *LocalAssignment) UnmarshalJSON(data []byte) error {
+	type alias LocalAssignment
+	var raw struct {
+		alias
+		RoleID string `json:"role_id"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*a = LocalAssignment(raw.alias)
+	if a.LogicID == "" {
+		a.LogicID = raw.RoleID
+	}
+	return nil
 }
 
 type CapabilityReport struct {

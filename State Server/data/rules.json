@@ -1,0 +1,69 @@
+[
+  {
+    "id": "rule-button-pressed",
+    "enabled": true,
+    "when": {
+      "any": [
+        {
+          "signal": "button_pressed",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    },
+    "then": {
+      "set_state": "pressed"
+    }
+  },
+  {
+    "id": "rule-counter-threshold",
+    "enabled": true,
+    "when": {
+      "all": [
+        {
+          "signal": "counter",
+          "op": "gt",
+          "value": 5
+        }
+      ]
+    },
+    "then": {
+      "set_state": "diagnostic"
+    }
+  },
+  {
+    "id": "rule-mode-start",
+    "enabled": true,
+    "when": {
+      "any": [
+        {
+          "signal": "mode",
+          "op": "equals",
+          "value": "start"
+        }
+      ]
+    },
+    "then": {
+      "set_state": "started"
+    }
+  },
+  {
+    "id": "rule-position-in-range",
+    "enabled": true,
+    "when": {
+      "any": [
+        {
+          "signal": "position",
+          "op": "all",
+          "value": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "then": {
+      "set_state": "in_range"
+    }
+  }
+]

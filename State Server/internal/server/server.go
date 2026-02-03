@@ -21,16 +21,22 @@ type Store interface {
 	UpdateDeployableRole(ctx context.Context, id, role string) error
 	UpdateDeployableStatus(ctx context.Context, id, status string) error
 	UpdateDeployableLogicVersion(ctx context.Context, id, version string) error
-	InsertEvent(ctx context.Context, event models.InputEvent) error
 	GetLatestShowLogicForRole(ctx context.Context, role string) (models.ShowLogicPackage, bool, error)
 	GetShowLogicByID(ctx context.Context, packageID string) (models.ShowLogicPackage, bool, error)
 	SaveShowLogicPackage(ctx context.Context, pkg models.ShowLogicPackage, createdBy string) error
 }
 
+type RulesStore interface {
+	SaveDeployableContext(ctx context.Context, ctxData models.DeployableContext) error
+	GetDeployableContext(ctx context.Context, id string) (models.DeployableContext, bool, error)
+	SaveSignalDefinitions(ctx context.Context, role string, defs []models.SignalDefinition) error
+	GetSignalDefinitions(ctx context.Context, role string) (map[string]models.SignalDefinition, bool, error)
+}
+
 type Server struct {
 	store         Store
 	hub           *ws.Hub
-	eventCh       chan models.InputEvent
+	eventCh       chan models.Event
 	validator     *ShowLogicValidator
 	serverVersion string
 	overrideState func(state string, variables map[string]interface{}) bool
@@ -39,9 +45,10 @@ type Server struct {
 	uiMu          sync.RWMutex
 	uiClients     map[*RegUIClient]struct{}
 	assetsDir     string
+	rulesStore    RulesStore
 }
 
-func New(store Store, hub *ws.Hub, eventCh chan models.InputEvent, validator *ShowLogicValidator, serverVersion string, overrideState func(state string, variables map[string]interface{}) bool, assetsDir string) *Server {
+func New(store Store, hub *ws.Hub, eventCh chan models.Event, validator *ShowLogicValidator, serverVersion string, overrideState func(state string, variables map[string]interface{}) bool, assetsDir string, rulesStore RulesStore) *Server {
 	return &Server{
 		store:         store,
 		hub:           hub,
@@ -51,6 +58,7 @@ func New(store Store, hub *ws.Hub, eventCh chan models.InputEvent, validator *Sh
 		overrideState: overrideState,
 		deployables:   make(map[string]*DeployableSession),
 		assetsDir:     assetsDir,
+		rulesStore:    rulesStore,
 	}
 }
 
@@ -63,6 +71,8 @@ func (s *Server) Routes() http.Handler {
 	router.HandleFunc("/register/ack", s.DeployableAck).Methods(http.MethodPost)
 
 	router.HandleFunc("/ui", s.UI).Methods(http.MethodGet)
+	router.HandleFunc("/ui/state", s.StateMonitorUI).Methods(http.MethodGet)
+	router.HandleFunc("/ui/rules", s.RulesEditorUI).Methods(http.MethodGet)
 	router.HandleFunc("/ui/register", s.RegisterUI).Methods(http.MethodGet)
 	router.HandleFunc("/ws/ui/register", s.RegisterUISocket)
 
@@ -77,11 +87,20 @@ func (s *Server) Routes() http.Handler {
 	api.HandleFunc("/deployables/{id}/show-logic", s.GetShowLogic).Methods(http.MethodGet)
 	api.HandleFunc("/deployables/{id}/ack", s.DeployableAck).Methods(http.MethodPost)
 	api.HandleFunc("/events", s.IngestEvent).Methods(http.MethodPost)
-	api.HandleFunc("/show-logic/{role}", s.UpsertShowLogic).Methods(http.MethodPut)
+	api.HandleFunc("/show-logic/{logic}", s.UpsertShowLogic).Methods(http.MethodPut)
 	api.HandleFunc("/show-logic-files", s.ListShowLogicFiles).Methods(http.MethodGet)
 	api.HandleFunc("/state", s.SetState).Methods(http.MethodPost)
 	api.HandleFunc("/deployables/pending", s.ListPendingDeployables).Methods(http.MethodGet)
 	api.HandleFunc("/deployables/{id}/assign", s.AssignDeployable).Methods(http.MethodPost)
+	api.HandleFunc("/rules", s.ListRules).Methods(http.MethodGet)
+	api.HandleFunc("/rules", s.CreateRule).Methods(http.MethodPost)
+	api.HandleFunc("/rules/{id}", s.GetRule).Methods(http.MethodGet)
+	api.HandleFunc("/rules/{id}", s.UpdateRule).Methods(http.MethodPut)
+	api.HandleFunc("/rules/{id}", s.DeleteRule).Methods(http.MethodDelete)
+	api.HandleFunc("/deployables-with-logic", s.ListDeployablesWithLogic).Methods(http.MethodGet)
+	api.HandleFunc("/states", s.ListStates).Methods(http.MethodGet)
+	api.HandleFunc("/signals", s.ListAllSignals).Methods(http.MethodGet)
+	api.HandleFunc("/deployables/{id}/signals", s.GetDeployableSignals).Methods(http.MethodGet)
 
 	router.HandleFunc("/ws/state", s.StateWebSocket)
 	router.HandleFunc("/ws/deployable", s.DeployableWebSocket)
@@ -112,8 +131,8 @@ func parseIDParam(r *http.Request) string {
 	return mux.Vars(r)["id"]
 }
 
-func parseRoleParam(r *http.Request) string {
-	return mux.Vars(r)["role"]
+func parseLogicParam(r *http.Request) string {
+	return mux.Vars(r)["logic"]
 }
 
 func parseDeployableID(r *http.Request) string {

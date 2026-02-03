@@ -108,15 +108,15 @@ func (s *Store) UpsertDeployable(ctx context.Context, req models.RegisterDeploya
 	}
 	now := time.Now().UTC()
 	status := statusNew
-	assignedRole := ""
+	assignedLogicID := ""
 	if known {
 		status = existing.Status
-		assignedRole = existing.AssignedRole
-		if assignedRole != "" {
+		assignedLogicID = existing.AssignedLogicID
+		if assignedLogicID != "" {
 			status = statusRegistering
 		}
 	} else {
-		if assignedRole != "" {
+		if assignedLogicID != "" {
 			status = statusRegistering
 		}
 	}
@@ -126,7 +126,7 @@ func (s *Store) UpsertDeployable(ctx context.Context, req models.RegisterDeploya
 				deployable_id, hostname, assigned_role, status, last_seen, capabilities_json,
 				agent_version, logic_version, updated_at
 			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`,
-			req.DeployableID, req.Hostname, assignedRole, status, now.Format(time.RFC3339Nano),
+			req.DeployableID, req.Hostname, assignedLogicID, status, now.Format(time.RFC3339Nano),
 			string(capsJSON), req.AgentVersion, "", now.Format(time.RFC3339Nano),
 		)
 		if err != nil {
@@ -155,7 +155,7 @@ func (s *Store) GetDeployable(ctx context.Context, id string) (models.Deployable
 	var rec models.DeployableRecord
 	var capsJSON sql.NullString
 	var lastSeen sql.NullString
-	err := row.Scan(&rec.DeployableID, &rec.AssignedRole, &rec.Status, &lastSeen, &capsJSON)
+	err := row.Scan(&rec.DeployableID, &rec.AssignedLogicID, &rec.Status, &lastSeen, &capsJSON)
 	if errors.Is(err, sql.ErrNoRows) {
 		return models.DeployableRecord{}, false, nil
 	}
@@ -186,7 +186,7 @@ func (s *Store) ListDeployables(ctx context.Context) ([]models.DeployableRecord,
 		var rec models.DeployableRecord
 		var capsJSON sql.NullString
 		var lastSeen sql.NullString
-		if err := rows.Scan(&rec.DeployableID, &rec.AssignedRole, &rec.Status, &lastSeen, &capsJSON); err != nil {
+		if err := rows.Scan(&rec.DeployableID, &rec.AssignedLogicID, &rec.Status, &lastSeen, &capsJSON); err != nil {
 			return nil, err
 		}
 		if lastSeen.Valid {
@@ -231,19 +231,6 @@ func (s *Store) UpdateDeployableLogicVersion(ctx context.Context, id, version st
 	return err
 }
 
-func (s *Store) InsertEvent(ctx context.Context, event models.InputEvent) error {
-	valueJSON, err := json.Marshal(event.Value)
-	if err != nil {
-		return err
-	}
-	_, err = s.db.ExecContext(ctx, `
-		INSERT INTO events (deployable_id, timestamp, input_id, event_type, value_json)
-		VALUES (?, ?, ?, ?, ?);`,
-		event.DeployableID, event.Timestamp.UTC().Format(time.RFC3339Nano), event.InputID, event.EventType, string(valueJSON),
-	)
-	return err
-}
-
 func (s *Store) SaveShowLogicPackage(ctx context.Context, pkg models.ShowLogicPackage, createdBy string) error {
 	checksum := sha256.Sum256(pkg.ShowLogic)
 	assetsJSON, err := json.Marshal(pkg.ReferencedAssets)
@@ -255,7 +242,7 @@ func (s *Store) SaveShowLogicPackage(ctx context.Context, pkg models.ShowLogicPa
 			package_id, role, logic_version, engine_contract_version, show_logic_json,
 			referenced_assets_json, created_at, created_by, checksum
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`,
-		pkg.PackageID, pkg.Role, pkg.LogicVersion, pkg.EngineContractVersion, string(pkg.ShowLogic),
+	pkg.PackageID, pkg.LogicID, pkg.LogicVersion, pkg.EngineContractVersion, string(pkg.ShowLogic),
 		string(assetsJSON), time.Now().UTC().Format(time.RFC3339Nano), createdBy, hex.EncodeToString(checksum[:]),
 	)
 	return err
@@ -268,7 +255,7 @@ func (s *Store) GetLatestShowLogicForRole(ctx context.Context, role string) (mod
 	var pkg models.ShowLogicPackage
 	var logicJSON sql.NullString
 	var assetsJSON sql.NullString
-	err := row.Scan(&pkg.PackageID, &pkg.Role, &pkg.LogicVersion, &pkg.EngineContractVersion, &logicJSON, &assetsJSON)
+	err := row.Scan(&pkg.PackageID, &pkg.LogicID, &pkg.LogicVersion, &pkg.EngineContractVersion, &logicJSON, &assetsJSON)
 	if errors.Is(err, sql.ErrNoRows) {
 		return models.ShowLogicPackage{}, false, nil
 	}
@@ -291,7 +278,7 @@ func (s *Store) GetShowLogicByID(ctx context.Context, packageID string) (models.
 	var pkg models.ShowLogicPackage
 	var logicJSON sql.NullString
 	var assetsJSON sql.NullString
-	err := row.Scan(&pkg.PackageID, &pkg.Role, &pkg.LogicVersion, &pkg.EngineContractVersion, &logicJSON, &assetsJSON)
+	err := row.Scan(&pkg.PackageID, &pkg.LogicID, &pkg.LogicVersion, &pkg.EngineContractVersion, &logicJSON, &assetsJSON)
 	if errors.Is(err, sql.ErrNoRows) {
 		return models.ShowLogicPackage{}, false, nil
 	}
@@ -366,7 +353,7 @@ func (s *Store) SaveRule(ctx context.Context, rule models.Rule) error {
 		INSERT INTO rules (rule_id, rule_json, created_at)
 		VALUES (?, ?, ?)
 		ON CONFLICT(rule_id) DO UPDATE SET rule_json = excluded.rule_json;`,
-		rule.RuleID, string(ruleJSON), time.Now().UTC().Format(time.RFC3339Nano),
+		rule.ID, string(ruleJSON), time.Now().UTC().Format(time.RFC3339Nano),
 	)
 	return err
 }
