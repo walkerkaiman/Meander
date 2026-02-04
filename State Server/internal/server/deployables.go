@@ -84,6 +84,11 @@ func (s *Server) upsertDeployableSession(conn *websocket.Conn, hello models.Depl
 	if session == nil {
 		session = &DeployableSession{DeviceID: hello.DeviceID}
 		s.deployables[hello.DeviceID] = session
+		// Load name and location from database if available
+		if rec, ok, err := s.store.GetDeployable(context.Background(), hello.DeviceID); err == nil && ok {
+			session.Name = rec.Name
+			session.Location = rec.Location
+		}
 	}
 	session.Hostname = hello.Hostname
 	session.IP = hello.IP
@@ -292,10 +297,18 @@ func (s *Server) AssignDeployable(w http.ResponseWriter, r *http.Request) {
 	} else if showLogic.Name != "" {
 		session.Name = showLogic.Name
 	}
-	session.Location = ""
+	if req.Location != "" {
+		session.Location = req.Location
+	}
 	session.AssignedLogicID = roleID
 	session.Status = "ASSIGN_SENT"
 	s.deployableMu.Unlock()
+	
+	// Save name and location to database
+	if err := s.store.UpdateDeployableNameLocation(r.Context(), id, session.Name, session.Location); err != nil {
+		log.Printf("registration: failed to save name/location for device_id=%s: %v", id, err)
+	}
+	
 	s.notifyUI("assign_sent", session)
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "sent"})

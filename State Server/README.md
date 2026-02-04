@@ -19,15 +19,17 @@ go run ./cmd/state-server
 ```
 
 Defaults:
-- HTTP: `:8080`
+- HTTP: `:8081`
 - DB: `state-server.db` (SQLite, created if missing)
+- Data directory: `data` (for rules, contexts, cooldowns, signals, state JSON files)
 
 ## Configuration
 
 Environment variables:
 - `STATE_SERVER_DB`: SQLite file path (default `state-server.db`)
-- `STATE_SERVER_LISTEN`: HTTP listen address (default `:8080`)
+- `STATE_SERVER_LISTEN`: HTTP listen address (default `:8081`)
 - `STATE_SERVER_ASSETS_DIR`: directory served at `/assets` (default `Assets`)
+- `STATE_SERVER_DATA_DIR`: directory for JSON data files (default `data`)
 - `STATE_SERVER_SCHEMA`: optional JSON schema file for show logic
 - `STATE_SERVER_ENGINE_VERS`: comma-separated allowed engine versions
   (default `1.0.0`)
@@ -35,14 +37,18 @@ Environment variables:
 
 ## HTTP API
 
-Base URL: `http://localhost:8080`
+Base URL: `http://localhost:8081`
 
 Health:
 - `GET /health`
 
 Control UI:
 - `GET /ui` (state override buttons)
+- `GET /ui/state` (live state monitor with WebSocket)
+- `GET /ui/rules` (rules editor)
+- `GET /ui/show-designer` (show logic designer)
 - `GET /ui/register` (registration + reassignment UI)
+- `GET /ws/ui/register` (WebSocket for registration UI updates)
 
 Registration:
 - `POST /register` (same as `POST /api/v1/register`)
@@ -76,8 +82,11 @@ Response:
 ```
 
 Deployable registry:
-- `GET /api/v1/deployables`
-- `PATCH /api/v1/deployables/{id}`
+- `GET /api/v1/deployables` (list all deployables)
+- `GET /api/v1/deployables/pending` (list pending/unassigned deployables)
+- `GET /api/v1/deployables-with-logic` (list deployables with their assigned show logic)
+- `PATCH /api/v1/deployables/{id}` (update deployable)
+- `POST /api/v1/deployables/{id}/assign` (assign role and show logic to deployable)
 
 Patch body:
 ```
@@ -85,9 +94,13 @@ Patch body:
 ```
 
 Show logic:
-- `PUT /api/v1/show-logic/{role}`
-- `GET /api/v1/deployables/{id}/show-logic`
+- `PUT /api/v1/show-logic/{role}` (upsert show logic for a role)
+- `GET /api/v1/deployables/{id}/show-logic` (get show logic assigned to deployable)
 - `GET /api/v1/show-logic-files` (list JSON files in `show-logic/`)
+- `GET /api/v1/show-logic/{logic_id}` (get show logic file by ID)
+- `PUT /api/v1/show-logic/{logic_id}` (update show logic file)
+- `POST /api/v1/show-logic` (create new show logic file)
+- `POST /api/v1/show-logic/{logic_id}/copy` (copy show logic file)
 
 `PUT` body:
 ```
@@ -116,13 +129,29 @@ Body:
 ```
 
 Event ingestion:
-- `POST /api/v1/events`
+- `POST /api/v1/events` (ingest events from deployables)
 
 State override:
-- `POST /api/v1/state`
+- `POST /api/v1/state` (manually override global state)
 
 Assets:
 - `GET /assets/<file>` (served from `STATE_SERVER_ASSETS_DIR`)
+- `GET /api/v1/assets` (list available assets)
+
+Hardware registry:
+- `GET /api/v1/hardware-registry` (get hardware capabilities registry)
+
+States and signals:
+- `GET /api/v1/states` (list all states from show logic files)
+- `GET /api/v1/signals` (list all signals from deployables)
+- `GET /api/v1/deployables/{id}/signals` (get signals for a specific deployable)
+
+Rules:
+- `GET /api/v1/rules` (list all rules)
+- `POST /api/v1/rules` (create a new rule)
+- `GET /api/v1/rules/{id}` (get a specific rule)
+- `PUT /api/v1/rules/{id}` (update a rule)
+- `DELETE /api/v1/rules/{id}` (delete a rule)
 
 Body:
 ```
@@ -142,22 +171,51 @@ Responses are JSON; errors look like:
 
 ## WebSocket
 
-Endpoint:
-- `GET /ws/state?deployable_id=DEVICE_ID` (state subscribers)
-- `GET /ws/deployable` (deployable registration + state updates)
+Endpoints:
+- `GET /ws/state?deployable_id=DEVICE_ID` (state-only subscription for monitoring)
+- `GET /ws/deployable` (deployable registration and state updates)
 
-Messages:
-- State broadcast:
-```
-{"type":"state_update","state":"intro","version":2,"timestamp":"...","variables":{"score":3}}
-```
-- Logic update signal (targeted to deployable ID):
-```
-{"type":"logic_update_available"}
+### Deployable WebSocket (`/ws/deployable`)
+
+**Client → Server messages:**
+- `hello` - Initial registration with device ID, capabilities, pairing code, etc.
+- `assign_role_ack` - Acknowledgment after receiving and validating show logic assignment
+
+**Server → Client messages:**
+- `assign_role` - Role and show logic assignment (sent when deployable is assigned)
+- `state_update` - Global state changes (sent to all ACTIVE deployables)
+- `logic_update_available` - Notification that show logic has been updated (sent to specific deployable)
+
+**Message formats:**
+
+State broadcast (to all active deployables):
+```json
+{
+  "type": "state_update",
+  "state": "intro",
+  "version": 2,
+  "timestamp": "2026-02-01T22:33:00Z",
+  "variables": {"score": 3}
+}
 ```
 
-If a deployable is ACTIVE, it receives state broadcasts; otherwise it only gets
-targeted messages like `logic_update_available`.
+Role assignment:
+```json
+{
+  "type": "assign_role",
+  "logic_id": "role-a",
+  "server_id": "server-1",
+  "profile": { ... },
+  "show_logic": { ... }
+}
+```
+
+Logic update notification:
+```json
+{"type": "logic_update_available"}
+```
+
+If a deployable is ACTIVE (has acknowledged role assignment), it receives state broadcasts. Otherwise, it only receives targeted messages like `assign_role` and `logic_update_available`.
 
 ## Data model
 
@@ -171,14 +229,20 @@ Key structs (see `internal/models/models.go`):
 ## Persistence
 
 SQLite tables (see `internal/storage/sqlite/store.go`):
-- `deployables`
-- `show_logic_packages`
-- `rules`
-- `events`
-- `state_snapshot`
+- `deployables` (device registry and capabilities)
+- `show_logic_packages` (show logic assignments)
+- `rules` (state transition rules)
+- `events` (event history)
+- `state_snapshot` (current global state)
 
-The latest `GlobalState` snapshot is stored in `state_snapshot` and reloaded on
-startup.
+JSON files in `data/` directory (see `internal/storage/jsonstore/store.go`):
+- `rules.json` (rule definitions)
+- `contexts.json` (rule contexts)
+- `cooldowns.json` (rule cooldown tracking)
+- `signal_defs.json` (signal definitions)
+- `state.json` (state definitions)
+
+The latest `GlobalState` snapshot is stored in `state_snapshot` SQLite table and reloaded on startup.
 
 ## Rule engine
 
@@ -201,12 +265,12 @@ When a rule matches, it can:
 ## Integration checklist
 
 For a new deployable device:
-1. `POST /api/v1/register`
-2. Wait for role assignment (via operator or API)
-3. `GET /api/v1/deployables/{id}/show-logic`
-4. Load logic and assets, then `POST /api/v1/deployables/{id}/ack`
+1. `POST /api/v1/register` (or `POST /register`)
+2. Wait for role assignment (via operator UI at `/ui/register` or API `POST /api/v1/deployables/{id}/assign`)
+3. `GET /api/v1/deployables/{id}/show-logic` (or receive via WebSocket `assign_role` message)
+4. Load logic and assets, then `POST /api/v1/deployables/{id}/ack` (or `POST /register/ack`)
 5. Send events to `POST /api/v1/events`
-6. Subscribe to `GET /ws/state?deployable_id=...`
+6. Subscribe to `GET /ws/deployable` (for state updates and logic updates) or `GET /ws/state?deployable_id=...` (state-only subscription)
 
 ## Show logic files
 

@@ -73,17 +73,21 @@ type SignalsIngestRequest struct {
 // ---------- Deployable registry view ----------
 
 type DeployableRecord struct {
-	DeployableID string         `json:"deployable_id"`
-	AssignedLogicID string      `json:"assigned_logic_id"`
-	Status       string         `json:"status"`
-	LastSeen     time.Time      `json:"last_seen"`
-	Capabilities DeployableCaps `json:"capabilities"`
+	DeployableID    string         `json:"deployable_id"`
+	AssignedLogicID string         `json:"assigned_logic_id"`
+	Status          string         `json:"status"`
+	LastSeen        time.Time      `json:"last_seen"`
+	Capabilities    DeployableCaps `json:"capabilities"`
+	Name            string         `json:"name,omitempty"`
+	Location        string         `json:"location,omitempty"`
 }
 
 // ---------- Role update ----------
 
 type UpdateDeployableRequest struct {
-	AssignedLogicID string `json:"assigned_logic_id"`
+	AssignedLogicID string `json:"assigned_logic_id,omitempty"`
+	Name            string `json:"name,omitempty"`
+	Location        string `json:"location,omitempty"`
 }
 
 // ---------- State broadcast ----------
@@ -206,6 +210,7 @@ type AssignRoleAck struct {
 
 type DeployableAssignRequest struct {
 	Name          string              `json:"name"`
+	Location      string              `json:"location,omitempty"`
 	LogicID       string              `json:"logic_id"`
 	Tags          []string            `json:"tags,omitempty"`
 	Profile       ExecutionProfile    `json:"profile"`

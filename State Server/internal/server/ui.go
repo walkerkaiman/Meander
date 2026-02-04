@@ -7,12 +7,123 @@ import (
 	"state-server/internal/models"
 )
 
-const uiHTML = `<!doctype html>
+const landingPageHTML = `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Server - State Server Control</title>
+  <title>Meander State Server</title>
+  <style>
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; 
+      margin: 0; 
+      padding: 0;
+      background: #f5f5f5;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 40px 20px;
+    }
+    h1 { 
+      margin: 0 0 8px 0;
+      font-size: 32px;
+      color: #333;
+    }
+    .subtitle {
+      color: #666;
+      margin-bottom: 40px;
+      font-size: 16px;
+    }
+    .ui-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+      margin-top: 30px;
+    }
+    .ui-card {
+      background: white;
+      border-radius: 8px;
+      padding: 24px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      transition: transform 0.2s, box-shadow 0.2s;
+      text-decoration: none;
+      color: inherit;
+      display: block;
+    }
+    .ui-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+    .ui-card h2 {
+      margin: 0 0 8px 0;
+      font-size: 20px;
+      color: #007bff;
+    }
+    .ui-card p {
+      margin: 0;
+      color: #666;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .icon {
+      font-size: 32px;
+      margin-bottom: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Meander State Server</h1>
+    <p class="subtitle">Control panel and management interfaces</p>
+    
+    <div class="ui-grid">
+      <a href="/ui/control" class="ui-card">
+        <div class="icon">🎮</div>
+        <h2>State Control</h2>
+        <p>Manually override global state and trigger state changes for testing and control.</p>
+      </a>
+      
+      <a href="/ui/state" class="ui-card">
+        <div class="icon">📊</div>
+        <h2>State Monitor</h2>
+        <p>Live monitoring of global state changes with real-time WebSocket updates.</p>
+      </a>
+      
+      <a href="/ui/monitor" class="ui-card">
+        <div class="icon">🖥️</div>
+        <h2>System Monitor</h2>
+        <p>Live status of all deployables, including online/offline state and last seen times.</p>
+      </a>
+      
+      <a href="/ui/rules" class="ui-card">
+        <div class="icon">⚙️</div>
+        <h2>Rules Editor</h2>
+        <p>Create and manage rules that trigger state transitions based on signals and events.</p>
+      </a>
+      
+      <a href="/ui/show-designer" class="ui-card">
+        <div class="icon">🎨</div>
+        <h2>Show Logic Designer</h2>
+        <p>Design and edit show logic files that define behavior for deployable devices.</p>
+      </a>
+      
+      <a href="/ui/register" class="ui-card">
+        <div class="icon">📱</div>
+        <h2>Device Registration</h2>
+        <p>Register deployable devices, assign roles, and distribute show logic to devices.</p>
+      </a>
+    </div>
+  </div>
+</body>
+</html>`
+
+const controlPanelHTML = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>State Server Control</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 32px; }
     h1 { margin-bottom: 8px; }
@@ -21,9 +132,11 @@ const uiHTML = `<!doctype html>
     input { padding: 6px; width: 220px; }
     textarea { width: 360px; height: 120px; }
     code { background: #f5f5f5; padding: 2px 4px; }
+    .back-link { margin-bottom: 20px; }
   </style>
 </head>
 <body>
+  <div class="back-link"><a href="/ui">← Back to Home</a></div>
   <h1>State Server Control</h1>
   <p>Click a button to override the global state.</p>
   <p><a href="/ui/state">Open live state monitor</a></p>
@@ -79,7 +192,341 @@ const uiHTML = `<!doctype html>
 
 func (s *Server) UI(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = w.Write([]byte(uiHTML))
+	_, _ = w.Write([]byte(landingPageHTML))
+}
+
+func (s *Server) ControlPanelUI(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = w.Write([]byte(controlPanelHTML))
+}
+
+const systemMonitorHTML = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>System Monitor - Meander State Server</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    h1 {
+      margin: 0 0 16px 0;
+      font-size: 28px;
+      color: #333;
+    }
+    .back-link {
+      margin-bottom: 16px;
+    }
+    .deployable-list {
+      display: grid;
+      gap: 12px;
+      margin-top: 16px;
+    }
+    .deployable-card {
+      background: #fff;
+      border-radius: 8px;
+      padding: 12px 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .deployable-main {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .deployable-id {
+      font-weight: 600;
+      color: #333;
+    }
+    .deployable-meta {
+      font-size: 12px;
+      color: #666;
+    }
+    .status-badge {
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .status-online {
+      background: #d4edda;
+      color: #155724;
+    }
+    .status-offline {
+      background: #f8d7da;
+      color: #721c24;
+    }
+    .status-pending {
+      background: #fff3cd;
+      color: #856404;
+    }
+    .status-error {
+      background: #f8d7da;
+      color: #721c24;
+    }
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 4px;
+      font-size: 12px;
+    }
+    .controls a {
+      color: #007bff;
+      text-decoration: none;
+    }
+    .controls a:hover {
+      text-decoration: underline;
+    }
+    .summary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 16px;
+      font-size: 13px;
+      color: #555;
+    }
+    .summary-item {
+      background: #fff;
+      border-radius: 999px;
+      padding: 6px 12px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+    }
+    .refresh-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      font-size: 13px;
+      color: #555;
+    }
+    .refresh-button {
+      background: #007bff;
+      color: #fff;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .refresh-button:hover {
+      background: #0056b3;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="back-link"><a href="/ui">← Back to Home</a></div>
+    <h1>System Monitor</h1>
+
+    <div class="refresh-row">
+      <label>
+        <input type="checkbox" id="autoRefresh" checked />
+        Auto-refresh every 5 seconds
+      </label>
+      <button class="refresh-button" onclick="refreshDeployables()">Refresh now</button>
+      <span id="lastUpdated" style="font-size: 12px; color: #777;"></span>
+    </div>
+
+    <div id="summary" class="summary"></div>
+
+    <div id="deployables" class="deployable-list">
+      Loading deployables...
+    </div>
+  </div>
+
+  <script>
+    let refreshTimer = null;
+
+    function formatTimestamp(ts) {
+      if (!ts) return 'never';
+      try {
+        const d = new Date(ts);
+        if (isNaN(d.getTime())) return 'invalid';
+        return d.toLocaleString();
+      } catch {
+        return 'invalid';
+      }
+    }
+
+    function formatDuration(from) {
+      if (!from) return 'n/a';
+      const start = new Date(from);
+      if (isNaN(start.getTime())) return 'n/a';
+      const diffMs = Date.now() - start.getTime();
+      if (diffMs < 0) return 'just now';
+      const seconds = Math.floor(diffMs / 1000);
+      const minutes = Math.floor(seconds / 60);
+      const hours = Math.floor(minutes / 60);
+      const days = Math.floor(hours / 24);
+      if (days > 0) return days + 'd ' + (hours % 24) + 'h';
+      if (hours > 0) return hours + 'h ' + (minutes % 60) + 'm';
+      if (minutes > 0) return minutes + 'm ' + (seconds % 60) + 's';
+      return seconds + 's';
+    }
+
+    function deriveStatus(rec) {
+      const raw = (rec.status || '').toUpperCase();
+      if (raw === 'ACTIVE') return { label: 'ONLINE', cls: 'status-online', kind: 'online' };
+      if (raw === 'ERROR') return { label: 'ERROR', cls: 'status-error', kind: 'error' };
+      if (raw === 'OFFLINE') return { label: 'OFFLINE', cls: 'status-offline', kind: 'offline' };
+      // NEW, ASSIGNED, REGISTERING, etc.
+      return { label: raw || 'PENDING', cls: 'status-pending', kind: 'pending' };
+    }
+
+    async function refreshDeployables() {
+      try {
+        const resp = await fetch('/api/v1/deployables');
+        if (!resp.ok) {
+          document.getElementById('deployables').innerHTML = '<p>Failed to load deployables (HTTP ' + resp.status + ')</p>';
+          return;
+        }
+        const records = await resp.json();
+        renderDeployables(records);
+        renderSummary(records);
+        const ts = new Date().toLocaleTimeString();
+        document.getElementById('lastUpdated').textContent = 'Last updated: ' + ts;
+      } catch (err) {
+        console.error('Failed to load deployables', err);
+        document.getElementById('deployables').innerHTML = '<p>Failed to load deployables.</p>';
+      }
+    }
+
+    function renderSummary(records) {
+      const summaryEl = document.getElementById('summary');
+      if (!Array.isArray(records) || records.length === 0) {
+        summaryEl.innerHTML = '<span class="summary-item">No deployables registered.</span>';
+        return;
+      }
+      let online = 0, offline = 0, pending = 0, error = 0;
+      records.forEach(r => {
+        const st = deriveStatus(r);
+        if (st.kind === 'online') online++;
+        else if (st.kind === 'offline') offline++;
+        else if (st.kind === 'error') error++;
+        else pending++;
+      });
+      summaryEl.innerHTML =
+        '<span class="summary-item">Total: ' + records.length + '</span>' +
+        '<span class="summary-item">Online: ' + online + '</span>' +
+        '<span class="summary-item">Pending: ' + pending + '</span>' +
+        '<span class="summary-item">Offline: ' + offline + '</span>' +
+        '<span class="summary-item">Error: ' + error + '</span>';
+    }
+
+    function getHumanReadableName(rec) {
+      const name = rec.name || '';
+      const location = rec.location || '';
+      if (name && location) {
+        return name + ' - ' + location;
+      } else if (name) {
+        return name;
+      } else if (location) {
+        return location;
+      }
+      return rec.deployable_id || rec.DeployableID || '';
+    }
+
+    function renderDeployables(records) {
+      const list = document.getElementById('deployables');
+      if (!Array.isArray(records) || records.length === 0) {
+        list.innerHTML = '<p>No deployables registered.</p>';
+        return;
+      }
+      const now = Date.now();
+      list.innerHTML = records.map(rec => {
+        const st = deriveStatus(rec);
+        const lastSeen = rec.last_seen || '';
+        const duration = lastSeen ? formatDuration(lastSeen) : 'n/a';
+        const durationLabel = (st.kind === 'online' ? 'Online for ' : 'Last seen ') + duration;
+        const logic = rec.assigned_logic_id || 'None';
+        const id = rec.deployable_id || rec.DeployableID || '';
+        const humanName = getHumanReadableName(rec);
+        
+        // Construct link to Deployable's web interface
+        // Prefer hostname or private network IPs (192.168.x.x, 10.x.x.x) over link-local (169.254.x.x)
+        let controlLink = '/ui/register'; // fallback
+        const ip = rec.ip || '';
+        const hostname = rec.hostname || '';
+        
+        // Check if IP is link-local (169.254.x.x) - prefer hostname in that case
+        const isLinkLocal = ip && ip.startsWith('169.254.');
+        
+        if (hostname && !isLinkLocal) {
+          // Prefer hostname if IP is not link-local
+          controlLink = 'http://' + hostname + ':8090/';
+        } else if (ip && !isLinkLocal) {
+          // Use IP if it's not link-local
+          controlLink = 'http://' + ip + ':8090/';
+        } else if (hostname) {
+          // Fallback to hostname even if IP is link-local
+          controlLink = 'http://' + hostname + ':8090/';
+        } else if (ip) {
+          // Last resort: use IP even if link-local
+          controlLink = 'http://' + ip + ':8090/';
+        }
+        
+        return (
+          '<div class="deployable-card">' +
+            '<div class="deployable-main">' +
+              '<div class="deployable-id">' + humanName + '</div>' +
+              '<div class="deployable-meta" style="font-size:0.85em;color:#999;font-family:monospace;">' + id + '</div>' +
+              '<div class="deployable-meta">' +
+                'Logic: ' + logic + ' | Last seen: ' + formatTimestamp(lastSeen) +
+              '</div>' +
+              '<div class="deployable-meta">' + durationLabel + '</div>' +
+              (st.kind === 'error'
+                ? '<div class="deployable-meta" style="color:#dc3545;font-weight:600;">Error status</div>'
+                : '') +
+              '<div class="controls">' +
+                '<a href="' + controlLink + '" target="_blank">Open Control Panel</a>' +
+              '</div>' +
+            '</div>' +
+            '<span class="status-badge ' + st.cls + '">' + st.label + '</span>' +
+          '</div>'
+        );
+      }).join('');
+    }
+
+    document.getElementById('autoRefresh').addEventListener('change', function (e) {
+      if (e.target.checked) {
+        if (!refreshTimer) {
+          refreshTimer = setInterval(refreshDeployables, 5000);
+        }
+      } else {
+        if (refreshTimer) {
+          clearInterval(refreshTimer);
+          refreshTimer = null;
+        }
+      }
+    });
+
+    // Initial load - refresh immediately when page opens
+    refreshDeployables();
+    // Set up auto-refresh if enabled
+    if (document.getElementById('autoRefresh').checked) {
+      refreshTimer = setInterval(refreshDeployables, 5000);
+    }
+  </script>
+</body>
+</html>`
+
+func (s *Server) SystemMonitorUI(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = w.Write([]byte(systemMonitorHTML))
 }
 
 const stateMonitorHTML = `<!doctype html>
@@ -97,6 +544,7 @@ const stateMonitorHTML = `<!doctype html>
   </style>
 </head>
 <body>
+  <div style="margin-bottom: 20px;"><a href="/ui">← Back to Home</a></div>
   <h1>State Server Monitor</h1>
   <div class="row">
     <code id="status">connecting...</code>
@@ -181,7 +629,7 @@ const rulesEditorHTML = `<!doctype html>
 <body>
   <div class="container">
     <h1>Rules Editor</h1>
-    <p><a href="/ui">← Back to Control</a> | <a href="/ui/state">State Monitor</a></p>
+    <p><a href="/ui">← Back to Home</a> | <a href="/ui/state">State Monitor</a></p>
 
     <div id="error" class="error" style="display:none;"></div>
     <div id="success" class="success" style="display:none;"></div>

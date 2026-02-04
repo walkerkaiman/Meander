@@ -7,46 +7,30 @@ const registerUIHTML = `<!doctype html>
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Server - Show Logic Distributor</title>
+  <title>Device Registration - Meander State Server</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 32px; }
     h1 { margin-bottom: 6px; }
+    .back-link { margin-bottom: 16px; }
     .card { border: 1px solid #ddd; padding: 12px; margin: 12px 0; border-radius: 6px; }
     .row { margin: 8px 0; }
     label { display: block; font-weight: 600; margin-bottom: 4px; }
-    input, textarea, select { width: 100%; padding: 6px; }
+    input, textarea, select { width: 100%; padding: 6px; box-sizing: border-box; }
     textarea { height: 120px; font-family: Consolas, monospace; }
-    button { padding: 8px 14px; }
+    button { padding: 8px 14px; margin-right: 8px; }
     code { background: #f5f5f5; padding: 2px 4px; }
     .meta { color: #666; font-size: 0.9em; }
+    .device-id { font-size: 0.85em; color: #999; font-family: monospace; }
   </style>
 </head>
 <body>
-  <h1>Show Logic Distributor</h1>
+  <div class="back-link"><a href="/ui">← Back to Home</a></div>
+  <h1>Device Registration</h1>
   <div class="meta">Deployables update live.</div>
   <h2>Pending Deployables</h2>
   <div id="pending-list"></div>
   <h2>Online Deployables</h2>
   <div id="online-list"></div>
-  <h2>Reassign Online Deployable</h2>
-  <div class="card">
-    <div class="row">
-      <label>Deployable</label>
-      <select id="reassignDeployable"></select>
-    </div>
-    <div class="row">
-      <label>Show Logic</label>
-      <select id="reassignShowLogic"></select>
-    </div>
-    <div class="row">
-      <label>Profile JSON</label>
-      <textarea id="reassignProfile">{ "profile_id": "default", "version": 1, "requires": {} }</textarea>
-    </div>
-    <div class="row">
-      <button id="reassignButton">Reassign</button>
-      <code id="reassignStatus">ready</code>
-    </div>
-  </div>
 
   <script>
     const cards = new Map();
@@ -54,6 +38,19 @@ const registerUIHTML = `<!doctype html>
     const onlineItems = new Map();
 
     let showLogicFiles = [];
+
+    function getHumanReadableName(item) {
+      const name = item.name || '';
+      const location = item.location || '';
+      if (name && location) {
+        return name + ' - ' + location;
+      } else if (name) {
+        return name;
+      } else if (location) {
+        return location;
+      }
+      return item.device_id;
+    }
 
     async function loadShowLogicFiles() {
       try {
@@ -64,7 +61,7 @@ const registerUIHTML = `<!doctype html>
       }
     }
 
-    function renderShowLogicOptions(select) {
+    function renderShowLogicOptions(select, currentValue) {
       select.innerHTML = '';
       const placeholder = document.createElement('option');
       placeholder.value = '';
@@ -74,22 +71,9 @@ const registerUIHTML = `<!doctype html>
         const opt = document.createElement('option');
         opt.value = file.file;
         opt.textContent = file.name || file.file;
-        select.appendChild(opt);
-      }
-    }
-
-    function renderReassignDeployables() {
-      const select = document.getElementById('reassignDeployable');
-      select.innerHTML = '';
-      const placeholder = document.createElement('option');
-      placeholder.value = '';
-      placeholder.textContent = 'Select deployable';
-      select.appendChild(placeholder);
-      for (const [id, item] of onlineItems.entries()) {
-        const opt = document.createElement('option');
-        opt.value = id;
-        const label = (item.name ? item.name + ' ' : '') + '(' + id + ')';
-        opt.textContent = label;
+        if (currentValue && file.file === currentValue) {
+          opt.selected = true;
+        }
         select.appendChild(opt);
       }
     }
@@ -190,17 +174,114 @@ const registerUIHTML = `<!doctype html>
       const card = document.createElement('div');
       card.className = 'card';
       card.setAttribute('data-device-id', item.device_id);
+      const humanName = getHumanReadableName(item);
       card.innerHTML =
-        '<div><strong>' + item.device_id + '</strong> <span class="meta">' +
-          (item.name || '') +
-        '</span></div>' +
-        '<div class="meta">' +
-          'show logic: ' + (item.assigned_logic_id || 'n/a') +
-          ' | status: ' + (item.status || 'ACTIVE') +
-          ' | connected: ' + item.connected +
+        '<div><strong>' + humanName + '</strong></div>' +
+        '<div class="device-id">Device ID: ' + item.device_id + '</div>' +
+        '<div class="meta" data-field="meta"></div>' +
+        '<div class="row">' +
+          '<label>Name</label>' +
+          '<input type="text" data-field="name" value="' + (item.name || '') + '" placeholder="Device name"/>' +
         '</div>' +
-        '';
+        '<div class="row">' +
+          '<label>Location</label>' +
+          '<input type="text" data-field="location" value="' + (item.location || '') + '" placeholder="Device location"/>' +
+        '</div>' +
+        '<div class="row">' +
+          '<label>Show Logic</label>' +
+          '<select data-field="show_logic_file"></select>' +
+        '</div>' +
+        '<div class="row">' +
+          '<label>Profile JSON</label>' +
+          '<textarea data-field="profile">{ "profile_id": "default", "version": 1, "requires": {} }</textarea>' +
+        '</div>' +
+        '<div class="row">' +
+          '<button data-field="update">Update Name/Location</button>' +
+          '<button data-field="reassign">Reassign Show Logic</button>' +
+          '<code data-field="status">ready</code>' +
+        '</div>';
+
+      const showLogicSelect = card.querySelector('select[data-field="show_logic_file"]');
+      renderShowLogicOptions(showLogicSelect, item.assigned_logic_id);
+
+      const updateBtn = card.querySelector('button[data-field="update"]');
+      const reassignBtn = card.querySelector('button[data-field="reassign"]');
+      const status = card.querySelector('code[data-field="status"]');
+
+      updateBtn.addEventListener('click', async () => {
+        const name = card.querySelector('input[data-field="name"]').value.trim();
+        const location = card.querySelector('input[data-field="location"]').value.trim();
+        status.textContent = 'updating...';
+        const resp = await fetch('/api/v1/deployables/' + item.device_id, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, location })
+        });
+        if (resp.ok) {
+          status.textContent = 'updated';
+          // Update the in-memory item
+          item.name = name;
+          item.location = location;
+          onlineItems.set(item.device_id, item);
+          // Update the display name
+          const nameEl = card.querySelector('strong');
+          const newHumanName = getHumanReadableName(item);
+          nameEl.textContent = newHumanName;
+        } else {
+          status.textContent = 'error ' + resp.status;
+        }
+      });
+
+      reassignBtn.addEventListener('click', async () => {
+        const showLogicFile = card.querySelector('select[data-field="show_logic_file"]').value;
+        const name = card.querySelector('input[data-field="name"]').value.trim();
+        const location = card.querySelector('input[data-field="location"]').value.trim();
+        let profile;
+        try {
+          profile = JSON.parse(card.querySelector('textarea[data-field="profile"]').value);
+        } catch (err) {
+          status.textContent = 'profile JSON invalid';
+          return;
+        }
+        if (!showLogicFile) {
+          status.textContent = 'select show logic';
+          return;
+        }
+        status.textContent = 'sending...';
+        const resp = await fetch('/api/v1/deployables/' + item.device_id + '/assign', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name,
+            location,
+            profile,
+            show_logic_file: showLogicFile
+          })
+        });
+        if (resp.ok) {
+          status.textContent = 'sent';
+          // Update the in-memory item
+          item.name = name;
+          item.location = location;
+          onlineItems.set(item.device_id, item);
+          // Update the display name
+          const nameEl = card.querySelector('strong');
+          const newHumanName = getHumanReadableName(item);
+          nameEl.textContent = newHumanName;
+        } else {
+          status.textContent = 'error ' + resp.status;
+        }
+      });
+
       return card;
+    }
+
+    function updateOnlineMeta(card, item) {
+      const meta = card.querySelector('[data-field="meta"]');
+      meta.textContent =
+        'show logic: ' + (item.assigned_logic_id || 'n/a') +
+        ' | status: ' + (item.status || 'ACTIVE') +
+        ' | connected: ' + item.connected;
     }
 
     function upsertOnline(item) {
@@ -211,13 +292,24 @@ const registerUIHTML = `<!doctype html>
         onlineCards.set(item.device_id, card);
         list.appendChild(card);
       } else {
-        card.querySelector('.meta').textContent =
-          'show logic: ' + (item.assigned_logic_id || 'n/a') +
-          ' | status: ' + (item.status || 'ACTIVE') +
-          ' | connected: ' + item.connected;
+        updateOnlineMeta(card, item);
+        // Update form fields if they changed
+        const nameInput = card.querySelector('input[data-field="name"]');
+        const locationInput = card.querySelector('input[data-field="location"]');
+        if (nameInput.value !== (item.name || '')) {
+          nameInput.value = item.name || '';
+        }
+        if (locationInput.value !== (item.location || '')) {
+          locationInput.value = item.location || '';
+        }
+        // Update display name
+        const nameEl = card.querySelector('strong');
+        const humanName = getHumanReadableName(item);
+        if (nameEl.textContent !== humanName) {
+          nameEl.textContent = humanName;
+        }
       }
       onlineItems.set(item.device_id, item);
-      renderReassignDeployables();
     }
 
     function removeOnline(item) {
@@ -229,12 +321,10 @@ const registerUIHTML = `<!doctype html>
       if (!onlineCards.size) {
         document.getElementById('online-list').innerHTML = '<p>No online deployables.</p>';
       }
-      renderReassignDeployables();
     }
 
     async function connect() {
       await loadShowLogicFiles();
-      renderShowLogicOptions(document.getElementById('reassignShowLogic'));
       const ws = new WebSocket('ws://' + location.host + '/ws/ui/register');
       ws.onmessage = (evt) => {
         const msg = JSON.parse(evt.data);
@@ -257,7 +347,6 @@ const registerUIHTML = `<!doctype html>
           if (!onlineCards.size) {
             document.getElementById('online-list').innerHTML = '<p>No online deployables.</p>';
           }
-          renderReassignDeployables();
         } else if (msg.type === 'upsert' || msg.type === 'disconnect') {
           if (isPending(msg.item)) {
             removeOnline(msg.item);
@@ -281,37 +370,6 @@ const registerUIHTML = `<!doctype html>
     }
 
     connect();
-
-    document.getElementById('reassignButton').addEventListener('click', async () => {
-      const status = document.getElementById('reassignStatus');
-      const deployableId = document.getElementById('reassignDeployable').value;
-      const showLogicFile = document.getElementById('reassignShowLogic').value;
-      let profile;
-      if (!deployableId) {
-        status.textContent = 'select deployable';
-        return;
-      }
-      if (!showLogicFile) {
-        status.textContent = 'select show logic';
-        return;
-      }
-      try {
-        profile = JSON.parse(document.getElementById('reassignProfile').value);
-      } catch (err) {
-        status.textContent = 'profile JSON invalid';
-        return;
-      }
-      status.textContent = 'sending...';
-      const resp = await fetch('/api/v1/deployables/' + deployableId + '/assign', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          profile,
-          show_logic_file: showLogicFile
-        })
-      });
-      status.textContent = resp.ok ? 'sent' : ('error ' + resp.status);
-    });
   </script>
 </body>
 </html>`;

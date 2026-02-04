@@ -55,7 +55,7 @@ const showDesignerHTML = `<!doctype html>
 <body>
   <div class="container">
     <h1>Show Logic Designer</h1>
-    <p><a href="/ui">← Back to Control</a> | <a href="/ui/rules">Rules Editor</a></p>
+    <p><a href="/ui">← Back to Home</a> | <a href="/ui/rules">Rules Editor</a></p>
 
     <div id="error" class="error" style="display:none;"></div>
     <div id="success" class="success" style="display:none;"></div>

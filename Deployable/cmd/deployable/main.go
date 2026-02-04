@@ -69,10 +69,13 @@ func main() {
 		EventsURL: config.DeriveEventsURL(cfg.ServerURL),
 	}
 	go func() {
+		log.Printf("web: starting server on %s", cfg.WebListenAddr)
 		if err := webServer.Listen(cfg.WebListenAddr); err != nil {
-			log.Printf("web server stopped: %v", err)
+			log.Printf("web server error: %v", err)
 		}
 	}()
+	// Give the web server a moment to start and log any immediate errors
+	time.Sleep(100 * time.Millisecond)
 
 	waitForSignal()
 	cancel()

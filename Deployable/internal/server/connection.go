@@ -187,14 +187,58 @@ func LocalIP() string {
 	if err != nil {
 		return ""
 	}
+	
+	// Prefer private network addresses (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
+	// over link-local addresses (169.254.x.x)
+	var privateIP string
+	var linkLocalIP string
+	var otherIP string
+	
 	for _, addr := range addrs {
 		if ipNet, ok := addr.(*net.IPNet); ok && !ipNet.IP.IsLoopback() {
-			if ipNet.IP.To4() != nil {
-				return ipNet.IP.String()
+			ip := ipNet.IP.To4()
+			if ip == nil {
+				continue
+			}
+			
+			// Check if it's a private network address
+			if ip[0] == 192 && ip[1] == 168 {
+				// 192.168.0.0/16
+				if privateIP == "" {
+					privateIP = ip.String()
+				}
+			} else if ip[0] == 10 {
+				// 10.0.0.0/8
+				if privateIP == "" {
+					privateIP = ip.String()
+				}
+			} else if ip[0] == 172 && ip[1] >= 16 && ip[1] <= 31 {
+				// 172.16.0.0/12
+				if privateIP == "" {
+					privateIP = ip.String()
+				}
+			} else if ip[0] == 169 && ip[1] == 254 {
+				// 169.254.0.0/16 (link-local)
+				if linkLocalIP == "" {
+					linkLocalIP = ip.String()
+				}
+			} else {
+				// Other non-loopback IPv4
+				if otherIP == "" {
+					otherIP = ip.String()
+				}
 			}
 		}
 	}
-	return ""
+	
+	// Return in order of preference: private > other > link-local
+	if privateIP != "" {
+		return privateIP
+	}
+	if otherIP != "" {
+		return otherIP
+	}
+	return linkLocalIP
 }
 
 func writeJSON(ctx context.Context, conn *websocket.Conn, v any) error {

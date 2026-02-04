@@ -56,8 +56,12 @@ func (s *Store) migrate() error {
 			capabilities_json TEXT,
 			agent_version TEXT,
 			logic_version TEXT,
+			name TEXT,
+			location TEXT,
 			updated_at TEXT
 		);`,
+		`ALTER TABLE deployables ADD COLUMN name TEXT;`,
+		`ALTER TABLE deployables ADD COLUMN location TEXT;`,
 		`CREATE TABLE IF NOT EXISTS show_logic_packages (
 			package_id TEXT PRIMARY KEY,
 			role TEXT NOT NULL,
@@ -91,7 +95,11 @@ func (s *Store) migrate() error {
 	}
 	for _, stmt := range stmts {
 		if _, err := s.db.Exec(stmt); err != nil {
-			return err
+			// Ignore errors for ALTER TABLE if columns already exist
+			if stmt != `ALTER TABLE deployables ADD COLUMN name TEXT;` &&
+				stmt != `ALTER TABLE deployables ADD COLUMN location TEXT;` {
+				return err
+			}
 		}
 	}
 	return nil
@@ -150,12 +158,14 @@ func (s *Store) UpsertDeployable(ctx context.Context, req models.RegisterDeploya
 
 func (s *Store) GetDeployable(ctx context.Context, id string) (models.DeployableRecord, bool, error) {
 	row := s.db.QueryRowContext(ctx, `
-		SELECT deployable_id, assigned_role, status, last_seen, capabilities_json
+		SELECT deployable_id, assigned_role, status, last_seen, capabilities_json, name, location
 		FROM deployables WHERE deployable_id = ?;`, id)
 	var rec models.DeployableRecord
 	var capsJSON sql.NullString
 	var lastSeen sql.NullString
-	err := row.Scan(&rec.DeployableID, &rec.AssignedLogicID, &rec.Status, &lastSeen, &capsJSON)
+	var name sql.NullString
+	var location sql.NullString
+	err := row.Scan(&rec.DeployableID, &rec.AssignedLogicID, &rec.Status, &lastSeen, &capsJSON, &name, &location)
 	if errors.Is(err, sql.ErrNoRows) {
 		return models.DeployableRecord{}, false, nil
 	}
@@ -170,12 +180,18 @@ func (s *Store) GetDeployable(ctx context.Context, id string) (models.Deployable
 	if capsJSON.Valid {
 		_ = json.Unmarshal([]byte(capsJSON.String), &rec.Capabilities)
 	}
+	if name.Valid {
+		rec.Name = name.String
+	}
+	if location.Valid {
+		rec.Location = location.String
+	}
 	return rec, true, nil
 }
 
 func (s *Store) ListDeployables(ctx context.Context) ([]models.DeployableRecord, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT deployable_id, assigned_role, status, last_seen, capabilities_json
+		SELECT deployable_id, assigned_role, status, last_seen, capabilities_json, name, location
 		FROM deployables ORDER BY deployable_id ASC;`)
 	if err != nil {
 		return nil, err
@@ -186,7 +202,9 @@ func (s *Store) ListDeployables(ctx context.Context) ([]models.DeployableRecord,
 		var rec models.DeployableRecord
 		var capsJSON sql.NullString
 		var lastSeen sql.NullString
-		if err := rows.Scan(&rec.DeployableID, &rec.AssignedLogicID, &rec.Status, &lastSeen, &capsJSON); err != nil {
+		var name sql.NullString
+		var location sql.NullString
+		if err := rows.Scan(&rec.DeployableID, &rec.AssignedLogicID, &rec.Status, &lastSeen, &capsJSON, &name, &location); err != nil {
 			return nil, err
 		}
 		if lastSeen.Valid {
@@ -196,6 +214,12 @@ func (s *Store) ListDeployables(ctx context.Context) ([]models.DeployableRecord,
 		}
 		if capsJSON.Valid {
 			_ = json.Unmarshal([]byte(capsJSON.String), &rec.Capabilities)
+		}
+		if name.Valid {
+			rec.Name = name.String
+		}
+		if location.Valid {
+			rec.Location = location.String
 		}
 		out = append(out, rec)
 	}
@@ -227,6 +251,14 @@ func (s *Store) UpdateDeployableLogicVersion(ctx context.Context, id, version st
 	_, err := s.db.ExecContext(ctx, `
 		UPDATE deployables SET logic_version = ?, updated_at = ? WHERE deployable_id = ?;`,
 		version, time.Now().UTC().Format(time.RFC3339Nano), id,
+	)
+	return err
+}
+
+func (s *Store) UpdateDeployableNameLocation(ctx context.Context, id, name, location string) error {
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE deployables SET name = ?, location = ?, updated_at = ? WHERE deployable_id = ?;`,
+		name, location, time.Now().UTC().Format(time.RFC3339Nano), id,
 	)
 	return err
 }

@@ -86,20 +86,20 @@ cd "State Server"
 go run ./cmd/state-server
 ```
 
-The server runs on `http://localhost:8080` by default.
+The server runs on `http://localhost:8081` by default.
 
 **Web Interfaces:**
-- Control Panel: `http://localhost:8080/ui`
-- State Monitor: `http://localhost:8080/ui/state`
-- Show Logic Designer: `http://localhost:8080/ui/show-designer`
-- Rules Editor: `http://localhost:8080/ui/rules`
-- Show Logic Distributor: `http://localhost:8080/ui/register`
+- Control Panel: `http://localhost:8081/ui`
+- State Monitor: `http://localhost:8081/ui/state`
+- Show Logic Designer: `http://localhost:8081/ui/show-designer`
+- Rules Editor: `http://localhost:8081/ui/rules`
+- Show Logic Distributor: `http://localhost:8081/ui/register`
 
 ### 2. Start a Deployable
 
 ```bash
 cd Deployable
-go run ./cmd/deployable --server ws://localhost:8080/ws/deployable
+go run ./cmd/deployable --server ws://localhost:8081/ws/deployable
 ```
 
 The deployable runs on `http://localhost:8090` by default.

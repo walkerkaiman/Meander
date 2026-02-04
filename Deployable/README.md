@@ -14,7 +14,7 @@ Then open `http://localhost:8090/api/status`.
 
 All settings are available as flags or environment variables.
 
-- `--server` / `DEPLOYABLE_SERVER_URL` (default: `ws://localhost:8081/ws/deployable`)
+- `--server` / `DEPLOYABLE_SERVER_URL` (default: `ws://localhost:8081/ws/deployable`) - State server WebSocket URL
 - `--data-dir` / `DEPLOYABLE_DATA_DIR` (default: `./data`)
 - `--assets-dir` / `DEPLOYABLE_ASSETS_DIR` (default: `./Assets`)
 - `--assets-source-dir` / `DEPLOYABLE_ASSETS_SOURCE_DIR`
@@ -24,9 +24,9 @@ All settings are available as flags or environment variables.
 - `--version` / `DEPLOYABLE_VERSION` (default: `dev`)
 - `--offline` / `DEPLOYABLE_OFFLINE` (default: `false`)
 - `--diagnostic-showlogic` / `DEPLOYABLE_DIAGNOSTIC_SHOWLOGIC` (default: `false`)
-- `--playback-backend` / `DEPLOYABLE_PLAYBACK_BACKEND` (default: `vlc`)
-- `--vlc-path` / `DEPLOYABLE_VLC_PATH` (default: `vlc`)
-- `--vlc-debug` / `DEPLOYABLE_VLC_DEBUG` (default: `false`)
+- `--playback-backend` / `DEPLOYABLE_PLAYBACK_BACKEND` (default: `vlc`) - Options: `vlc`, `libvlc`, or `stub`
+- `--vlc-path` / `DEPLOYABLE_VLC_PATH` (default: `vlc`) - Path to VLC executable (for `vlc` backend)
+- `--vlc-debug` / `DEPLOYABLE_VLC_DEBUG` (default: `false`) - Enable VLC stderr logging for RC debugging
 
 ## VLC media engine
 
@@ -47,11 +47,12 @@ Notes:
 ## Asset sync
 
 The deployable can fetch missing assets from:
-- `DEPLOYABLE_ASSETS_SOURCE_DIR` (local copy)
+- `DEPLOYABLE_ASSETS_SOURCE_DIR` (local directory)
 - `DEPLOYABLE_ASSETS_SOURCE_URL` (HTTP, e.g. `http://server:8081/assets`)
 
-`DEPLOYABLE_ASSETS_CLEANUP=false` is recommended during testing to avoid deleting
-files that are not referenced by the current show logic.
+If neither is specified, the deployable will automatically derive the assets URL from the server WebSocket URL (e.g., `ws://localhost:8081/ws/deployable` → `http://localhost:8081/assets`).
+
+`DEPLOYABLE_ASSETS_CLEANUP=false` is recommended during testing to avoid deleting files that are not referenced by the current show logic.
 
 ## Registration flow
 

@@ -323,7 +323,40 @@ func (s *Server) ListDeployables(w http.ResponseWriter, r *http.Request) {
 		errorJSON(w, http.StatusInternalServerError, "failed to list deployables")
 		return
 	}
-	writeJSON(w, http.StatusOK, records)
+	// Merge session data (IP, hostname) with records
+	s.deployableMu.RLock()
+	sessions := make(map[string]*DeployableSession)
+	for _, session := range s.deployables {
+		sessions[session.DeviceID] = session
+	}
+	s.deployableMu.RUnlock()
+	
+	// Enhance records with session data
+	enhanced := make([]map[string]interface{}, len(records))
+	for i, rec := range records {
+		enhanced[i] = map[string]interface{}{
+			"deployable_id":     rec.DeployableID,
+			"assigned_logic_id": rec.AssignedLogicID,
+			"status":            rec.Status,
+			"last_seen":         rec.LastSeen.Format(time.RFC3339Nano),
+			"capabilities":      rec.Capabilities,
+			"name":              rec.Name,
+			"location":          rec.Location,
+		}
+		if session, ok := sessions[rec.DeployableID]; ok {
+			enhanced[i]["ip"] = session.IP
+			enhanced[i]["hostname"] = session.Hostname
+			enhanced[i]["connected"] = session.Connected
+			// Prefer session name/location if available (might be more recent)
+			if session.Name != "" {
+				enhanced[i]["name"] = session.Name
+			}
+			if session.Location != "" {
+				enhanced[i]["location"] = session.Location
+			}
+		}
+	}
+	writeJSON(w, http.StatusOK, enhanced)
 }
 
 func (s *Server) UpdateDeployable(w http.ResponseWriter, r *http.Request) {
@@ -346,16 +379,46 @@ func (s *Server) UpdateDeployable(w http.ResponseWriter, r *http.Request) {
 		errorJSON(w, http.StatusNotFound, "deployable not found")
 		return
 	}
-	changed := current.AssignedLogicID != req.AssignedLogicID
-	if err := s.store.UpdateDeployableRole(r.Context(), id, req.AssignedLogicID); err != nil {
-		errorJSON(w, http.StatusInternalServerError, "failed to update logic id")
-		return
+	
+	// Update role if provided
+	if req.AssignedLogicID != "" {
+		changed := current.AssignedLogicID != req.AssignedLogicID
+		if err := s.store.UpdateDeployableRole(r.Context(), id, req.AssignedLogicID); err != nil {
+			errorJSON(w, http.StatusInternalServerError, "failed to update logic id")
+			return
+		}
+		if changed {
+			_ = s.store.UpdateDeployableStatus(r.Context(), id, statusRegistering)
+			s.hub.SetActive(id, false)
+			s.hub.NotifyLogicUpdate(id)
+		}
 	}
-	if changed {
-		_ = s.store.UpdateDeployableStatus(r.Context(), id, statusRegistering)
-		s.hub.SetActive(id, false)
-		s.hub.NotifyLogicUpdate(id)
+	
+	// Update name and location if provided
+	if req.Name != "" || req.Location != "" {
+		name := req.Name
+		location := req.Location
+		if name == "" {
+			name = current.Name
+		}
+		if location == "" {
+			location = current.Location
+		}
+		if err := s.store.UpdateDeployableNameLocation(r.Context(), id, name, location); err != nil {
+			errorJSON(w, http.StatusInternalServerError, "failed to update name/location")
+			return
+		}
+		
+		// Update in-memory session
+		s.deployableMu.Lock()
+		if session := s.deployables[id]; session != nil {
+			session.Name = name
+			session.Location = location
+			s.notifyUI("upsert", session)
+		}
+		s.deployableMu.Unlock()
 	}
+	
 	writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
 }
 

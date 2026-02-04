@@ -21,6 +21,7 @@ type Store interface {
 	UpdateDeployableRole(ctx context.Context, id, role string) error
 	UpdateDeployableStatus(ctx context.Context, id, status string) error
 	UpdateDeployableLogicVersion(ctx context.Context, id, version string) error
+	UpdateDeployableNameLocation(ctx context.Context, id, name, location string) error
 	GetLatestShowLogicForRole(ctx context.Context, role string) (models.ShowLogicPackage, bool, error)
 	GetShowLogicByID(ctx context.Context, packageID string) (models.ShowLogicPackage, bool, error)
 	SaveShowLogicPackage(ctx context.Context, pkg models.ShowLogicPackage, createdBy string) error
@@ -71,6 +72,8 @@ func (s *Server) Routes() http.Handler {
 	router.HandleFunc("/register/ack", s.DeployableAck).Methods(http.MethodPost)
 
 	router.HandleFunc("/ui", s.UI).Methods(http.MethodGet)
+	router.HandleFunc("/ui/monitor", s.SystemMonitorUI).Methods(http.MethodGet)
+	router.HandleFunc("/ui/control", s.ControlPanelUI).Methods(http.MethodGet)
 	router.HandleFunc("/ui/state", s.StateMonitorUI).Methods(http.MethodGet)
 	router.HandleFunc("/ui/rules", s.RulesEditorUI).Methods(http.MethodGet)
 	router.HandleFunc("/ui/show-designer", s.ShowDesignerUI).Methods(http.MethodGet)
