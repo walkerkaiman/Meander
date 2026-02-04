@@ -28,7 +28,7 @@
       ]
     },
     "then": {
-      "set_state": "diagnostic"
+      "set_state": "Main_Show"
     }
   },
   {

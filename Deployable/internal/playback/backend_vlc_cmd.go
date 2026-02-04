@@ -16,6 +16,40 @@ import (
 	"time"
 )
 
+// getPrimaryMonitorWidth returns the width of the primary monitor in pixels.
+// On Windows, uses PowerShell to query monitor resolution.
+// Returns 1920 as a fallback if detection fails.
+func getPrimaryMonitorWidth() int {
+	if runtime.GOOS != "windows" {
+		// For non-Windows, return a default value
+		return 1920
+	}
+	
+	// Use PowerShell to get the primary monitor width
+	cmd := exec.Command("powershell", "-NoProfile", "-Command",
+		"Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.Screen]::PrimaryScreen.Bounds.Width")
+	output, err := cmd.Output()
+	if err != nil {
+		log.Printf("vlc: failed to detect primary monitor width, using default 1920: %v", err)
+		return 1920
+	}
+	
+	widthStr := strings.TrimSpace(string(output))
+	width, err := strconv.Atoi(widthStr)
+	if err != nil {
+		log.Printf("vlc: failed to parse monitor width '%s', using default 1920: %v", widthStr, err)
+		return 1920
+	}
+	
+	if width <= 0 {
+		log.Printf("vlc: invalid monitor width %d, using default 1920", width)
+		return 1920
+	}
+	
+	log.Printf("vlc: detected primary monitor width: %dpx", width)
+	return width
+}
+
 type VLCCommandBackend struct {
 	VLCPath string
 	Debug   bool
@@ -58,8 +92,27 @@ func (b *VLCCommandBackend) Open(assetPath string, output OutputDevice) (Backend
 	args := rcArgs
 	if output.Type == "video" {
 		args = append(args, "--fullscreen")
-		if idx, ok := parseDisplayIndex(output.ID); ok && !isCVLCPath(b.VLCPath) {
-			args = append(args, "--qt-fullscreen-screennumber="+strconv.Itoa(idx))
+		// Use Index field (should be set when devices are configured via ConfigureOutputDevices or ConfigureOutputs)
+		// Index 0 is valid for the first display, so we always use Index if available
+		displayIdx := output.Index
+		// Fallback: if Index wasn't set (and ID suggests it should have been), try parsing from ID
+		if displayIdx == 0 && output.ID != "" {
+			// Try parsing from ID as a safety fallback, but prefer Index if it was set
+			if idx, ok := parseDisplayIndex(output.ID); ok && idx != 0 {
+				// Only use parsed index if it's different from 0 (to avoid overriding a valid 0)
+				displayIdx = idx
+			}
+		}
+		if !isCVLCPath(b.VLCPath) && displayIdx >= 0 {
+			// Use --video-x and --video-y to position the window on the correct monitor
+			// Calculate X coordinate based on actual monitor width
+			// display-0: X=0, display-1: X=primaryWidth, display-2: X=primaryWidth*2, etc.
+			primaryWidth := getPrimaryMonitorWidth()
+			videoX := displayIdx * primaryWidth
+			videoY := 0
+			args = append(args, "--video-x="+strconv.Itoa(videoX))
+			args = append(args, "--video-y="+strconv.Itoa(videoY))
+			log.Printf("vlc: video output device=%s index=%d (positioning at x=%d, y=0, primary width=%d)", output.ID, displayIdx, videoX, primaryWidth)
 		}
 	}
 	args = append(args, assetPath)

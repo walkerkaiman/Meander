@@ -17,6 +17,11 @@ type Dispatcher struct {
 	errorSink chan<- DispatchError
 }
 
+// UpdateExecutor allows updating an executor after creation (e.g., to set DeviceID)
+func (d *Dispatcher) UpdateExecutor(actionName string, executor ActionExecutor) {
+	d.executors[actionName] = executor
+}
+
 type DispatchError struct {
 	Action types.EngineAction
 	Err    error

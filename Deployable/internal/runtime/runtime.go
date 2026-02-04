@@ -50,10 +50,13 @@ type Runtime struct {
 	engineStarted    bool
 	assetsCleanup    bool
 	serverHTTPBaseURL string
+	eventsURL          string
 	httpClient         *http.Client
 	showLogicRetryMu   sync.Mutex
 	showLogicRetrying  bool
 	agentVersion       string
+	dispatcher         *actions.Dispatcher
+	changeStateExecutor *actions.ChangeStateExecutor
 }
 
 type Config struct {
@@ -62,6 +65,7 @@ type Config struct {
 	AssetsSourceDir   string
 	AssetsSourceURL   string
 	ServerHTTPBaseURL string
+	EventsURL         string
 	AgentVersion      string
 	PlaybackBackend   string
 	VLCPath           string
@@ -81,6 +85,12 @@ func NewRuntime(cfg Config) *Runtime {
 	}
 	player := playback.NewManager(cfg.AssetsDir, backend)
 	actionErrors := make(chan actions.DispatchError, 32)
+	httpClient := &http.Client{Timeout: 5 * time.Second}
+	changeStateExecutor := actions.ChangeStateExecutor{
+		ServerHTTPBaseURL: cfg.ServerHTTPBaseURL,
+		HTTPClient:        httpClient,
+		// DeviceID will be set in Boot() after device is loaded
+	}
 	disp := actions.NewDispatcher(actionsChan, []actions.ActionExecutor{
 		actions.PlayVideoExecutor{Player: player},
 		actions.StopVideoExecutor{Player: player},
@@ -99,6 +109,7 @@ func NewRuntime(cfg Config) *Runtime {
 		actions.MediaSeekExecutor{Player: player},
 		actions.MediaSetExecutor{Player: player},
 		actions.MediaFadeExecutor{Player: player},
+		changeStateExecutor,
 	}, actionErrors)
 	engineInstance := engine.NewEngine()
 	rt := &Runtime{
@@ -114,7 +125,8 @@ func NewRuntime(cfg Config) *Runtime {
 		supportedActions: disp.SupportedActions(),
 		assetsCleanup:    cfg.AssetsCleanup,
 		serverHTTPBaseURL: cfg.ServerHTTPBaseURL,
-		httpClient:        &http.Client{Timeout: 5 * time.Second},
+		eventsURL:         cfg.EventsURL,
+		httpClient:        httpClient,
 		agentVersion:      cfg.AgentVersion,
 	}
 	go disp.Run(make(chan struct{}))
@@ -134,6 +146,13 @@ func (r *Runtime) Boot() error {
 	}
 	r.Device = device
 	log.Printf("boot: device id=%s", r.Device.DeviceID)
+	// Update ChangeStateExecutor with DeviceID now that it's available
+	if r.changeStateExecutor != nil {
+		r.changeStateExecutor.DeviceID = r.Device.DeviceID
+		if r.dispatcher != nil {
+			r.dispatcher.UpdateExecutor("Change_State", *r.changeStateExecutor)
+		}
+	}
 	assignment, err := r.store.LoadAssignment()
 	if err != nil {
 		return err
@@ -593,7 +612,92 @@ func (r *Runtime) forwardSensorEvents() {
 			Type:        "sensor_event",
 			SensorEvent: event,
 		}
+		// Auto-convert sensor events to signals for rules engine
+		r.autoConvertSensorToSignal(event)
 	}
+}
+
+func (r *Runtime) autoConvertSensorToSignal(event types.SensorEvent) {
+	if r.eventsURL == "" || r.httpClient == nil {
+		return
+	}
+	if r.ShowLogic.LogicID == "" {
+		return
+	}
+	// Use sensor_id as signal name (sensors automatically become signals)
+	signalName := event.SensorID
+	if signalName == "" {
+		return
+	}
+	
+	// Convert value to appropriate type
+	signalValue := r.convertSignalValue(event.Value, event.EventType)
+	
+	// Send signal to server
+	signals := map[string]any{
+		signalName: signalValue,
+	}
+	payload := map[string]any{
+		"deployable_id": r.Device.DeviceID,
+		"timestamp":     event.Timestamp.Unix(),
+		"signals":       signals,
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("sensor: failed to encode signal payload: %v", err)
+		return
+	}
+	resp, err := r.httpClient.Post(r.eventsURL, "application/json", bytes.NewReader(body))
+	if err != nil {
+		log.Printf("sensor: failed to send signal: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		log.Printf("sensor: signal post returned %s", resp.Status)
+	}
+}
+
+func (r *Runtime) convertSignalValue(value any, eventType string) any {
+	// Infer type from event_type or value
+	if eventType == "bool" || eventType == "boolean" {
+		if b, ok := value.(bool); ok {
+			return b
+		}
+		if s, ok := value.(string); ok {
+			return s == "true" || s == "1" || s == "on"
+		}
+		return false
+	}
+	if eventType == "number" || eventType == "numeric" {
+		switch v := value.(type) {
+		case float64:
+			return v
+		case int:
+			return float64(v)
+		case int64:
+			return float64(v)
+		case string:
+			if f, err := strconv.ParseFloat(v, 64); err == nil {
+				return f
+			}
+		}
+		return 0.0
+	}
+	if eventType == "vector2" {
+		if arr, ok := value.([]any); ok && len(arr) == 2 {
+			return arr
+		}
+		if arr, ok := value.([]float64); ok && len(arr) == 2 {
+			return arr
+		}
+		return []float64{0, 0}
+	}
+	// Default to string
+	if s, ok := value.(string); ok {
+		return s
+	}
+	return fmt.Sprintf("%v", value)
 }
 
 func (r *Runtime) forwardActionErrors() {
@@ -637,16 +741,18 @@ func buildOutputDevices(caps types.CapabilityReport) []playback.OutputDevice {
 	outputs := []playback.OutputDevice{}
 	for _, item := range caps.VideoOutputDetails {
 		outputs = append(outputs, playback.OutputDevice{
-			ID:   item.ID,
-			Name: item.Name,
-			Type: item.Type,
+			ID:    item.ID,
+			Name:  item.Name,
+			Type:  item.Type,
+			Index: item.Index,
 		})
 	}
 	for _, item := range caps.AudioOutputDetails {
 		outputs = append(outputs, playback.OutputDevice{
-			ID:   item.ID,
-			Name: item.Name,
-			Type: item.Type,
+			ID:    item.ID,
+			Name:  item.Name,
+			Type:  item.Type,
+			Index: item.Index,
 		})
 	}
 	return outputs

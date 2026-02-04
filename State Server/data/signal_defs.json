@@ -1,3 +1,8 @@
 {
-  "diagnostic": null
+  "diagnostic": [
+    {
+      "name": "counter",
+      "type": "number"
+    }
+  ]
 }

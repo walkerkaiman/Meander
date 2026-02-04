@@ -32,6 +32,7 @@ node_modules/
 packages/*/dist/
 **/dist/
 Editor/dist/
+build/
 
 # TypeScript build artifacts
 *.d.ts

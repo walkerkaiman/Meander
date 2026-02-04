@@ -115,6 +115,7 @@ func (e *Engine) OnGlobalState(update types.GlobalStateUpdate) {
 	e.mu.Unlock()
 
 	e.executeActions(nextState.OnEnter)
+	log.Printf("state: transitioned to %s, arming %d timers", nextStateName, len(nextState.Timers))
 	e.armTimers(nextState)
 }
 
@@ -146,12 +147,24 @@ func (e *Engine) OnTimer(event types.TimerEvent) {
 		e.mu.Unlock()
 		return
 	}
-	state := e.stateIndex[e.currentState]
+	currentStateName := e.currentState
+	state, ok := e.stateIndex[currentStateName]
 	e.mu.Unlock()
+	if !ok {
+		log.Printf("timer: timer %s fired but current state %s not found", event.TimerID, currentStateName)
+		return
+	}
+	log.Printf("timer: timer %s fired in state %s", event.TimerID, currentStateName)
+	found := false
 	for _, handler := range state.TimerHandlers {
 		if handler.TimerID == event.TimerID {
+			found = true
+			log.Printf("timer: executing handler for timer %s with %d actions", event.TimerID, len(handler.Actions))
 			e.executeActions(handler.Actions)
 		}
+	}
+	if !found {
+		log.Printf("timer: timer %s fired but no handler found in state %s", event.TimerID, currentStateName)
 	}
 }
 
@@ -172,8 +185,10 @@ func (e *Engine) armTimers(state types.ShowState) {
 		timerID := timer.TimerID
 		delay := time.Duration(timer.DelayMs) * time.Millisecond
 		if delay <= 0 {
+			log.Printf("timer: skipping timer %s with invalid delay %d ms", timerID, timer.DelayMs)
 			continue
 		}
+		log.Printf("timer: arming timer %s with delay %d ms in state %s", timerID, timer.DelayMs, e.currentState)
 		t := time.AfterFunc(delay, func() {
 			e.OnTimer(types.TimerEvent{
 				TimerID:   timerID,
@@ -187,8 +202,12 @@ func (e *Engine) armTimers(state types.ShowState) {
 func (e *Engine) cancelTimers() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	for _, timer := range e.timers {
+	if len(e.timers) > 0 {
+		log.Printf("timer: cancelling %d active timers", len(e.timers))
+	}
+	for timerID, timer := range e.timers {
 		timer.Stop()
+		log.Printf("timer: cancelled timer %s", timerID)
 	}
 	e.timers = make(map[string]*time.Timer)
 }

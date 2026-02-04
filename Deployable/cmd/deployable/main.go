@@ -25,6 +25,7 @@ func main() {
 		AssetsSourceDir:    cfg.AssetsSourceDir,
 		AssetsSourceURL:    cfg.AssetsSourceURL,
 		ServerHTTPBaseURL:  config.DeriveServerBaseURL(cfg.ServerURL),
+		EventsURL:          config.DeriveEventsURL(cfg.ServerURL),
 		AgentVersion:       cfg.AgentVersion,
 		PlaybackBackend:    cfg.PlaybackBackend,
 		VLCPath:            cfg.VLCPath,

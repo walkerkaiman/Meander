@@ -7,7 +7,7 @@ const registerUIHTML = `<!doctype html>
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Deployable Registration</title>
+  <title>Server - Show Logic Distributor</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 32px; }
     h1 { margin-bottom: 6px; }
@@ -22,7 +22,7 @@ const registerUIHTML = `<!doctype html>
   </style>
 </head>
 <body>
-  <h1>Deployable Registration</h1>
+  <h1>Show Logic Distributor</h1>
   <div class="meta">Deployables update live.</div>
   <h2>Pending Deployables</h2>
   <div id="pending-list"></div>

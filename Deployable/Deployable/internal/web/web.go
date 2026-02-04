@@ -28,7 +28,7 @@ func (s *Server) Listen(addr string) error {
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	status := s.Runtime.Status()
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = w.Write([]byte("<html><head><title>Deployable</title></head><body>"))
+	_, _ = w.Write([]byte("<html><head><title>Deployable - Status</title></head><body>"))
 	_, _ = w.Write([]byte("<h1>Deployable Status</h1><pre>"))
 	encoded, _ := json.MarshalIndent(status, "", "  ")
 	_, _ = w.Write(encoded)

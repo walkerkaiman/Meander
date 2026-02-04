@@ -1,8 +1,12 @@
 package actions
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
+	"net/http"
 	"strings"
 
 	"deployable/internal/playback"
@@ -248,6 +252,48 @@ func (e MediaFadeExecutor) Execute(target string, params map[string]any) error {
 	}
 	durationMs := intParam(params, "duration_ms")
 	return e.Player.FadeVolume(target, targetVol, durationMs)
+}
+
+type ChangeStateExecutor struct {
+	ServerHTTPBaseURL string
+	HTTPClient        *http.Client
+	DeviceID          string
+}
+
+func (e ChangeStateExecutor) ActionName() string {
+	return "Change_State"
+}
+
+func (e ChangeStateExecutor) Execute(target string, params map[string]any) error {
+	state, ok := params["state"].(string)
+	if !ok || state == "" {
+		return errors.New("Change_State requires params.state")
+	}
+	if e.ServerHTTPBaseURL == "" || e.HTTPClient == nil {
+		return errors.New("Change_State requires server HTTP base URL")
+	}
+	url := e.ServerHTTPBaseURL + "/api/v1/state"
+	payload := map[string]any{
+		"state": state,
+	}
+	if e.DeviceID != "" {
+		payload["device_id"] = e.DeviceID
+	}
+	log.Printf("Change_State: requesting state change to %s", state)
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to encode state change request: %w", err)
+	}
+	resp, err := e.HTTPClient.Post(url, "application/json", bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("failed to send state change request: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("state change request failed with status %s", resp.Status)
+	}
+	log.Printf("Change_State: successfully requested state change to %s", state)
+	return nil
 }
 
 func playRequestFromParams(params map[string]any, allowVolume bool) (playback.PlayRequest, error) {

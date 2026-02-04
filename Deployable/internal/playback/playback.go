@@ -25,9 +25,10 @@ type PlaybackService interface {
 }
 
 type OutputDevice struct {
-	ID   string
-	Name string
-	Type string
+	ID    string
+	Name  string
+	Type  string
+	Index int // Display/screen index for video outputs
 }
 
 type PlayRequest struct {
@@ -76,16 +77,16 @@ func (m *Manager) ConfigureOutputs(videoOutputs, audioOutputs []string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.aliases = make(map[string]string)
-	for _, name := range videoOutputs {
+	for i, name := range videoOutputs {
 		id := normalizeID(name, "video")
-		m.outputs[id] = OutputDevice{ID: id, Name: name, Type: "video"}
+		m.outputs[id] = OutputDevice{ID: id, Name: name, Type: "video", Index: i}
 		if _, ok := m.channels[id]; !ok {
 			m.channels[id] = newChannel(m.backend, m.assetsDir, m.outputs[id])
 		}
 	}
-	for _, name := range audioOutputs {
+	for i, name := range audioOutputs {
 		id := normalizeID(name, "audio")
-		m.outputs[id] = OutputDevice{ID: id, Name: name, Type: "audio"}
+		m.outputs[id] = OutputDevice{ID: id, Name: name, Type: "audio", Index: i}
 		if _, ok := m.channels[id]; !ok {
 			m.channels[id] = newChannel(m.backend, m.assetsDir, m.outputs[id])
 		}

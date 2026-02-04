@@ -1,110 +1,58 @@
 {
   "logic_id": "diagnostic",
   "name": "Diagnostic",
-  "deployable_id": "diagnostic",
-  "version": 1,
+  "deployable_id": "",
+  "version": 10,
+  "signals": [
+    {
+      "name": "counter",
+      "type": "number"
+    }
+  ],
   "states": [
     {
-      "name": "diagnostic",
+      "name": "Main_Show",
       "on_enter": [
         {
           "action": "play_video",
           "target": "display-0",
           "params": {
-            "fade_in_ms": 250,
-            "file": "diagnostic_video.mov",
-            "loop": false
+            "file": "diagnostic_video.mov"
           }
-        },
+        }
+      ],
+      "on_exit": [],
+      "sensor_handlers": [],
+      "timer_handlers": [
         {
-          "action": "play_audio",
-          "target": "audio-0",
+          "timer_id": "timer-3",
+          "actions": [
+            {
+              "action": "Change_State",
+              "target": "",
+              "params": {
+                "state": "Attract"
+              }
+            }
+          ]
+        }
+      ],
+      "timers": [
+        {
+          "timer_id": "timer-3",
+          "delay_ms": 20000
+        }
+      ]
+    },
+    {
+      "name": "Attract",
+      "on_enter": [
+        {
+          "action": "play_video",
+          "target": "display-1",
           "params": {
-            "file": "diagnostic_audio.wav",
-            "loop": false,
-            "volume": 0.8
+            "file": "diagnostic_video.mov"
           }
-        }
-      ],
-      "on_exit": [
-        {
-          "action": "stop_video",
-          "target": "display-0",
-          "params": {}
-        },
-        {
-          "action": "stop_audio",
-          "target": "audio-0",
-          "params": {}
-        }
-      ],
-      "sensor_handlers": [],
-      "timer_handlers": [],
-      "timers": []
-    },
-    {
-      "name": "idle",
-      "on_enter": [
-        {
-          "action": "stop_all",
-          "target": "",
-          "params": {}
-        }
-      ],
-      "on_exit": [],
-      "sensor_handlers": [],
-      "timer_handlers": [],
-      "timers": []
-    },
-    {
-      "name": "pressed",
-      "on_enter": [
-        {
-          "action": "stop_all",
-          "target": "",
-          "params": {}
-        }
-      ],
-      "on_exit": [],
-      "sensor_handlers": [],
-      "timer_handlers": [],
-      "timers": []
-    },
-    {
-      "name": "threshold",
-      "on_enter": [
-        {
-          "action": "stop_all",
-          "target": "",
-          "params": {}
-        }
-      ],
-      "on_exit": [],
-      "sensor_handlers": [],
-      "timer_handlers": [],
-      "timers": []
-    },
-    {
-      "name": "in_range",
-      "on_enter": [
-        {
-          "action": "stop_all",
-          "target": "",
-          "params": {}
-        }
-      ],
-      "on_exit": [],
-      "sensor_handlers": [],
-      "timer_handlers": [],
-      "timers": []
-    },
-    {
-      "name": "started",
-      "on_enter": [
-        {
-          "action": "stop_all",
-          "target": "",
-          "params": {}
         }
       ],
       "on_exit": [],

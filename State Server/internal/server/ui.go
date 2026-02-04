@@ -12,7 +12,7 @@ const uiHTML = `<!doctype html>
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>State Server Control</title>
+  <title>Server - State Server Control</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 32px; }
     h1 { margin-bottom: 8px; }
@@ -87,7 +87,7 @@ const stateMonitorHTML = `<!doctype html>
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>State Server Monitor</title>
+  <title>Server - State Server Monitor</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 32px; }
     h1 { margin-bottom: 8px; }
@@ -143,7 +143,7 @@ const rulesEditorHTML = `<!doctype html>
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Rules Editor</title>
+  <title>Server - Rules Editor</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 32px; background: #f5f5f5; }
     .container { max-width: 1200px; margin: 0 auto; background: white; padding: 24px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
